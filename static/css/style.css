@@ -1,0 +1,881 @@
+/* Modern Glassmorphism Design - wzorowany na projekt_kebab_fix */
+
+/* Google Fonts - Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Global styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #0a0a1f 0%, #1a1a3e 50%, #0f1729 100%);
+    min-height: 100vh;
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+
+/* Animated gradient background */
+.gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Glassmorphism cards */
+.glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+}
+
+.glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-hover:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(102, 126, 234, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(102, 126, 234, 0.15);
+}
+
+/* Clean fade-in */
+.fade-in {
+    animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+/* Slide up - minimalistyczny */
+.slide-up {
+    animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0; 
+        transform: translateY(30px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+/* Navigation */
+.navbar {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: #e2e8f0 !important;
+    text-decoration: none;
+}
+
+.navbar-brand:hover {
+    color: #f093fb !important;
+    transition: color 0.3s ease;
+}
+
+.nav-link {
+    color: rgba(226, 232, 240, 0.8) !important;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: #f093fb !important;
+    background: rgba(240, 147, 251, 0.1);
+    border-radius: 8px;
+}
+
+/* Cards */
+.card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+}
+
+.card-header {
+    background: rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+    color: #ffffff;
+    border-radius: 16px 16px 0 0;
+}
+
+.card-body {
+    background: transparent;
+}
+
+/* Tables */
+.table {
+    background: rgba(255, 255, 255, 0.02) !important;
+    color: #ffffff !important;
+    margin-bottom: 0;
+}
+
+.table th {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-top: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #ffffff !important;
+    padding: 1rem;
+}
+
+.table td {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+    color: #ffffff !important;
+}
+
+.table-hover tbody tr:hover {
+    background: rgba(102, 126, 234, 0.1);
+    transition: background 0.3s ease;
+}
+
+/* Monthly distribution table */
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+    color: #ffffff;
+}
+
+.table-bordered thead th {
+    border-bottom-width: 2px;
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 0.75rem 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.table-bordered tbody td {
+    text-align: center;
+    padding: 0.6rem 0.4rem;
+    font-size: 0.85rem;
+    color: #ffffff;
+}
+
+.table-bordered tfoot th {
+    background: rgba(102, 126, 234, 0.25);
+    font-weight: 600;
+    text-align: center;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Auto-generated items styling */
+.badge.bg-info {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+}
+
+/* Form controls */
+.form-control,
+.form-select {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+    color: #ffffff;
+}
+
+.form-control::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.form-label {
+    color: #ffffff;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-text {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.875rem;
+}
+
+.input-group-sm .form-control {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+    border: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #5a6fd8, #6a4190);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #0d9f6f, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #0891b2, #0e7490);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #e2e8f0;
+    transform: translateY(-2px);
+}
+
+.btn-outline-primary {
+    background: transparent;
+    border: 1px solid #667eea;
+    color: #667eea;
+}
+
+.btn-outline-primary:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-outline-success {
+    background: transparent;
+    border: 1px solid #10b981;
+    color: #10b981;
+}
+
+.btn-outline-success:hover {
+    background: #10b981;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-outline-danger {
+    background: transparent;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+}
+
+.btn-outline-danger:hover {
+    background: #ef4444;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-group-sm .btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Alerts */
+.alert {
+    border: none;
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.alert-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.alert-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.alert-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.alert-info {
+    background: rgba(6, 182, 212, 0.1);
+    color: #06b6d4;
+    border-color: rgba(6, 182, 212, 0.2);
+}
+
+.alert-dismissible .btn-close {
+    padding: 0.75rem 1rem;
+    filter: invert(1);
+}
+
+/* Modal */
+.modal-content {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px 16px 0 0;
+}
+
+.modal-title {
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+.modal-body {
+    background: transparent;
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 0 16px 16px;
+}
+
+.btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+.modal-lg {
+    max-width: 900px;
+}
+
+.modal-backdrop {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+}
+
+/* Price inputs */
+.price-input {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+    }
+    
+    .d-flex.justify-content-between {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .d-flex.justify-content-between > * {
+        margin: 0;
+    }
+    
+    .card {
+        border-radius: 12px;
+    }
+    
+    .modal-lg {
+        max-width: 95%;
+    }
+}
+
+@media (max-width: 576px) {
+    .table-bordered th,
+    .table-bordered td {
+        padding: 0.4rem 0.3rem;
+        font-size: 0.75rem;
+    }
+    
+    .modal-lg {
+        max-width: 95%;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Currency formatting */
+.currency {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+    color: #10b981;
+    font-weight: 500;
+}
+
+/* Status badges */
+.badge {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+/* Custom spacing */
+.mb-4 {
+    margin-bottom: 2rem !important;
+}
+
+/* List styling for better contrast */
+.list-unstyled li {
+    color: #ffffff;
+    margin-bottom: 0.5rem;
+}
+
+.list-unstyled li strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* Text utility classes for better contrast */
+.text-muted {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.text-center {
+    text-align: center !important;
+}
+
+/* Dynamic elements styling */
+.badge {
+    color: #ffffff;
+}
+
+.fw-bold {
+    font-weight: 600 !important;
+    color: #ffffff;
+}
+
+.text-end {
+    text-align: right !important;
+}
+
+/* Ensure all table cells have proper contrast */
+.table td,
+.table th {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.table tbody tr {
+    background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Override Bootstrap's text utilities */
+.text-light {
+    color: #ffffff !important;
+}
+
+/* Force dark theme for all table elements - highest priority */
+.table,
+.table *,
+.table td,
+.table th,
+.table tbody,
+.table tbody tr,
+.table tbody td {
+    background: rgba(255, 255, 255, 0.02) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Override any Bootstrap table styles */
+.bootstrap-table,
+.bootstrap-table * {
+    background: rgba(255, 255, 255, 0.02) !important;
+    color: #ffffff !important;
+}
+
+/* Select options styling for better contrast */
+select option {
+    background: #2d3748;
+    color: #ffffff;
+    padding: 0.5rem;
+}
+
+select option:checked {
+    background: #667eea;
+    color: #ffffff;
+}
+
+/* Additional form improvements */
+.form-control:focus,
+.form-select:focus {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25) !important;
+    color: #ffffff !important;
+}
+
+/* Ensure all inputs have proper contrast */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+}
+
+input[type="text"]::placeholder,
+input[type="number"]::placeholder,
+input[type="email"]::placeholder,
+input[type="password"]::placeholder,
+textarea::placeholder {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Small form controls styling */
+.form-control-sm {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    font-size: 0.875rem !important;
+}
+
+.form-control-sm:focus {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    color: #ffffff !important;
+}
+
+/* Input group styling */
+.input-group-sm .form-control {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+}
+
+.input-group-sm .form-control:focus {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    color: #ffffff !important;
+}
+
+/* Price input styling */
+.price-input {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    text-align: right !important;
+}
+
+.price-input:focus {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    color: #ffffff !important;
+}
+
+/* Hide number input spinners and style them */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    opacity: 0.7;
+    filter: invert(1);
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Make number input spinners visible on dark background */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    opacity: 0.8;
+    filter: invert(1) brightness(2);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* Alternative: completely hide spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    display: none;
+}
+
+/* Focus states for accessibility */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .btn,
+    .modal {
+        display: none !important;
+    }
+    
+    .container {
+        max-width: 100%;
+        padding: 0;
+    }
+    
+    .card {
+        border: none;
+        box-shadow: none;
+        background: white;
+        color: black;
+    }
+    
+    .table {
+        font-size: 0.8rem;
+        color: black;
+    }
+    
+    body {
+        background: white;
+        color: black;
+    }
+}
+
+/* Inline form styling */
+.inline-form {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.inline-form .form-control,
+.inline-form .form-select {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
+}
+
+.inline-form .form-control::placeholder,
+.inline-form .form-select::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.inline-form .form-label {
+    color: #ffffff !important;
+    font-weight: 500;
+}
+
+.inline-form .form-text {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.inline-form .btn {
+    margin-top: 1rem;
+}
+
+/* Month selector component */
+.month-selector {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.month-toggle {
+    display: flex;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.month-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.9);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.month-toggle button:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.month-toggle button.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-weight: 600;
+}
+
+.month-slider {
+    margin: 1rem 0;
+}
+
+.month-slider input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.month-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.month-slider input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.month-preview {
+    text-align: center;
+    color: #ffffff;
+    font-weight: 600;
+    margin-top: 0.5rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edytor Wyceny - Aplikacja Wyceny SEO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-calculator"></i> Aplikacja Wyceny SEO
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Lista Wycen</a>
+                <a class="nav-link" href="/pricelist">Cennik</a>
+                <a class="nav-link" href="/templates">Szablony Zadań</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 id="quoteTitle" class="text-light">Nowa Wycena</h1>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="saveQuote()">
+                            <i class="bi bi-check-circle"></i> Zapisz
+                        </button>
+                        <button class="btn btn-info me-2" onclick="exportQuote()">
+                            <i class="bi bi-file-excel"></i> Eksport Excel
+                        </button>
+                        <button class="btn btn-secondary" onclick="window.location.href='/'">
+                            <i class="bi bi-arrow-left"></i> Powrót
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Global Parameters Section -->
+                <div class="card glass-card glass-card-hover slide-up mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">Parametry wyceny</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="quoteName" class="form-label">Nazwa wyceny</label>
+                                    <input type="text" class="form-control" id="quoteName" placeholder="Wprowadź nazwę wyceny">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Szybkie dodawanie zadań</label>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary flex-fill" onclick="addLinkiBudgetTask()">
+                                        <i class="bi bi-link-45deg"></i> Dodaj Linki
+                                    </button>
+                                    <button class="btn btn-outline-primary flex-fill" onclick="addContentTask()">
+                                        <i class="bi bi-file-text"></i> Dodaj Treści
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Task Section -->
+                <div class="card glass-card glass-card-hover mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">Dodaj nowe zadanie</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="inline-form">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="newTaskName" class="form-label">Nazwa zadania</label>
+                                        <input type="text" class="form-control" id="newTaskName" placeholder="Wprowadź nazwę zadania">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="newSpecialistType" class="form-label">Specjalista</label>
+                                        <select class="form-select" id="newSpecialistType">
+                                            <option value="">Wybierz specjalistę</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="newClientUnits" class="form-label">Liczba j.m.</label>
+                                        <input type="number" class="form-control" id="newClientUnits" step="0.01" min="0" value="1">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="newPricePerUnit" class="form-label">Cena j.m. [zł]</label>
+                                        <input type="number" class="form-control price-input" id="newPricePerUnit" step="0.01" min="0" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-1">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div class="currency" id="newTotalPrice">0,00 zł</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Miesiąc realizacji</label>
+                                        <div class="month-range-container">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span>Od:</span>
+                                                <input type="range" class="form-range" id="newFromMonth" min="1" max="12" value="1">
+                                                <span id="newFromMonthValue">01</span>
+                                                <span>Do:</span>
+                                                <input type="range" class="form-range" id="newToMonth" min="1" max="12" value="1">
+                                                <span id="newToMonthValue">01</span>
+                                            </div>
+                                            <div class="form-text" id="newMonthPreview">Miesiąc 01</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end gap-2">
+                                    <button class="btn btn-primary" onclick="addTaskInline()">
+                                        <i class="bi bi-plus-circle"></i> Dodaj zadanie
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Section -->
+                <div class="card glass-card glass-card-hover mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 text-light">Lista zadań</h5>
+                        <button class="btn btn-outline-success" onclick="importTemplates()" title="Importuj domyślne zadania z szablonów">
+                            <i class="bi bi-download"></i> Importuj szablony
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Zadanie</th>
+                                        <th>Specjalista</th>
+                                        <th>J.m. klient</th>
+                                        <th>Cena j.m.</th>
+                                        <th>Cena klient</th>
+                                        <th>Miesiąc realizacji</th>
+                                        <th>Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Items will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Distribution Section -->
+                <div class="card glass-card glass-card-hover mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">Rozkład miesięczny</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="monthlyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Zadanie</th>
+                                        <th>Miesiąc 01</th>
+                                        <th>Miesiąc 02</th>
+                                        <th>Miesiąc 03</th>
+                                        <th>Miesiąc 04</th>
+                                        <th>Miesiąc 05</th>
+                                        <th>Miesiąc 06</th>
+                                        <th>Miesiąc 07</th>
+                                        <th>Miesiąc 08</th>
+                                        <th>Miesiąc 09</th>
+                                        <th>Miesiąc 10</th>
+                                        <th>Miesiąc 11</th>
+                                        <th>Miesiąc 12</th>
+                                        <th>SUMA</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Monthly data will be loaded here -->
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-secondary">
+                                        <th>SUMA MIESIĘCZNA</th>
+                                        <th id="month01Sum">0</th>
+                                        <th id="month02Sum">0</th>
+                                        <th id="month03Sum">0</th>
+                                        <th id="month04Sum">0</th>
+                                        <th id="month05Sum">0</th>
+                                        <th id="month06Sum">0</th>
+                                        <th id="month07Sum">0</th>
+                                        <th id="month08Sum">0</th>
+                                        <th id="month09Sum">0</th>
+                                        <th id="month10Sum">0</th>
+                                        <th id="month11Sum">0</th>
+                                        <th id="month12Sum">0</th>
+                                        <th id="totalSum">0</th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEO Competitors Analysis Section -->
+                <div class="card glass-card glass-card-hover">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">
+                            <i class="bi bi-search"></i> Wyznaczanie domen konkurentów
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <label for="keywordsInput" class="form-label text-light">
+                                Słowa kluczowe (5-500 słów)
+                            </label>
+                            <textarea 
+                                class="form-control" 
+                                id="keywordsInput" 
+                                rows="6" 
+                                placeholder="Wprowadź słowa kluczowe, jedno w linii lub rozdzielone przecinkami...&#10;&#10;Przykład:&#10;seo warszawa&#10;pozycjonowanie stron&#10;marketing internetowy, agencja seo, optymalizacja stron"
+                            ></textarea>
+                            <div class="form-text text-warning fw-bold">
+                                ⚠️ WYMAGANE: Minimum 5 słów kluczowych (maksymalnie 500). Każde słowo będzie analizowane osobno.
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <button class="btn btn-primary" id="analyzeCompetitorsBtn" onclick="analyzeCompetitors()">
+                                <i class="bi bi-search"></i> Analizuj konkurencję
+                            </button>
+                            <div id="competitorsProgress" class="d-none">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                    <span class="visually-hidden">Ładowanie...</span>
+                                </div>
+                                <span class="text-light">Analizuję słowa kluczowe...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Results Table -->
+                        <div id="competitorsResults" class="d-none">
+                            <h6 class="text-light mb-3">Wyniki analizy konkurencji</h6>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="competitorsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Pozycja</th>
+                                            <th>Domena konkurenta</th>
+                                            <th>Liczba wystąpień</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Results will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Messages -->
+                        <div id="competitorsError" class="alert alert-danger d-none" role="alert">
+                            <!-- Error messages will be shown here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEO Analysis Section -->
+                <div class="card glass-card glass-card-hover">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">
+                            <i class="bi bi-graph-up"></i> Analiza ruchu Ahrefs
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <label for="domainsInput" class="form-label text-light">
+                                Domeny do analizy (maksymalnie 50)
+                            </label>
+                            <textarea 
+                                class="form-control" 
+                                id="domainsInput" 
+                                rows="6" 
+                                placeholder="Wprowadź domeny, jedną w linii...&#10;&#10;Przykład:&#10;example.com&#10;competitor1.pl&#10;competitor2.com&#10;shop.example.org"
+                            ></textarea>
+                            <div class="form-text text-light">
+                                Wprowadź domeny do analizy SEO. Każda domena będzie analizowana pod kątem metryk Ahrefs.
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <button class="btn btn-primary" id="analyzeSeoBtn" onclick="analyzeSeoCompetitors()">
+                                <i class="bi bi-graph-up"></i> Analizuj domeny SEO
+                            </button>
+                            <div id="seoProgress" class="d-none">
+                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                    <span class="visually-hidden">Ładowanie...</span>
+                                </div>
+                                <span class="text-light">Analizuję domeny SEO...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Results Table -->
+                        <div id="seoResults" class="d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="text-light mb-0">Wyniki analizy SEO</h6>
+                                <button class="btn btn-success btn-sm" onclick="exportSeoToCsv()">
+                                    <i class="bi bi-download"></i> Eksportuj do CSV
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="seoTable">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Domena</th>
+                                            <th>Domain Rating</th>
+                                            <th>Domains</th>
+                                            <th>TOP 3</th>
+                                            <th>TOP 10</th>
+                                            <th>Liczba URL w TOP 10</th>
+                                            <th>Liczba URL w TOP 50</th>
+                                            <th>Szacowany ruch</th>
+                                            <th>średnio słów kl. na URL</th>
+                                            <th>średnio ruchu/słowo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Results will be loaded here -->
+                                    </tbody>
+                                    <tfoot id="seoAveragesRow" class="table-secondary">
+                                        <!-- Averages row will be loaded here -->
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Messages -->
+                        <div id="seoError" class="alert alert-danger d-none" role="alert">
+                            <!-- Error messages will be shown here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Modal for Linki (Link Building) -->
+    <div class="modal fade" id="linkiModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj zadania Linkbuilding</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="linkiBudget" class="form-label">Całkowity budżet LB [zł]</label>
+                        <input type="number" class="form-control" id="linkiBudget" step="0.01" min="0" value="0">
+                        <div class="form-text">
+                            Zostanie podzielony na: LB marża (15%) i LB budżet mediowy (85%)
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Miesiące realizacji</label>
+                        <div class="month-range-container">
+                            <div class="d-flex align-items-center gap-2">
+                                <span>Od:</span>
+                                <input type="range" class="form-range" id="linkiFromMonth" min="1" max="12" value="2">
+                                <span id="linkiFromMonthValue">02</span>
+                                <span>Do:</span>
+                                <input type="range" class="form-range" id="linkiToMonth" min="1" max="12" value="12">
+                                <span id="linkiToMonthValue">12</span>
+                            </div>
+                            <div class="form-text" id="linkiMonthDisplay">Od Miesiąc 02 do Miesiąc 12</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" onclick="saveLinkiTasks()">Dodaj zadania</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Content (Treści) -->
+    <div class="modal fade" id="contentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj zadanie Napisanie treści</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="contentChars" class="form-label">Liczba znaków w tysiącach</label>
+                        <input type="number" class="form-control" id="contentChars" step="0.1" min="0" value="0">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contentRate" class="form-label">Stawka za 1000 znaków [zł]</label>
+                        <input type="number" class="form-control" id="contentRate" step="0.01" min="0" value="40">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contentMultiplier" class="form-label">Mnożnik stawki</label>
+                        <input type="number" class="form-control" id="contentMultiplier" step="0.1" min="0" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contentNumTexts" class="form-label">Liczba tekstów</label>
+                        <input type="number" class="form-control" id="contentNumTexts" min="0" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Całkowita cena</label>
+                        <div class="fs-4 fw-bold text-primary" id="contentTotalPrice">0,00 zł</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Miesiące realizacji</label>
+                        <div class="month-range-container">
+                            <div class="d-flex align-items-center gap-2">
+                                <span>Od:</span>
+                                <input type="range" class="form-range" id="contentFromMonth" min="1" max="12" value="2">
+                                <span id="contentFromMonthValue">02</span>
+                                <span>Do:</span>
+                                <input type="range" class="form-range" id="contentToMonth" min="1" max="12" value="2">
+                                <span id="contentToMonthValue">02</span>
+                            </div>
+                            <div class="form-text" id="contentMonthDisplay">Miesiąc 02</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" onclick="saveContentTask()">Dodaj zadanie</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/quote_editor.js') }}?v=2"></script>
+    <script src="{{ url_for('static', filename='js/seo_analysis.js') }}?v=2"></script>
+</body>
+</html>

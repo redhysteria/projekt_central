@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikacja Wyceny SEO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-calculator"></i> Aplikacja Wyceny SEO
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link active" href="/">Lista Wycen</a>
+                <a class="nav-link" href="/pricelist">Cennik</a>
+                <a class="nav-link" href="/templates">Szablony Zadań</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="text-light">Lista Wycen</h1>
+                    <button class="btn btn-primary" onclick="createNewQuote()">
+                        <i class="bi bi-plus-circle"></i> Nowa Wycena
+                    </button>
+                </div>
+
+                <div class="card glass-card glass-card-hover slide-up">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="quotesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nazwa</th>
+                                        <th>Data utworzenia</th>
+                                        <th>Data aktualizacji</th>
+                                        <th>Wartość całkowita</th>
+                                        <th>Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for new quote -->
+    <div class="modal fade" id="newQuoteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nowa Wycena</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newQuoteForm">
+                        <div class="mb-3">
+                            <label for="quoteName" class="form-label">Nazwa wyceny</label>
+                            <input type="text" class="form-control" id="quoteName" placeholder="Wprowadź nazwę wyceny" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewQuote()">Utwórz</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Potwierdzenie</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmMessage">
+                    <!-- Message will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-danger" id="confirmButton" data-bs-dismiss="modal">Potwierdź</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/quotes.js') }}"></script>
+</body>
+</html>

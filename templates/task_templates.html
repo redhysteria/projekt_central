@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zarządzanie Szablonami - Aplikacja Wyceny SEO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-calculator"></i> Aplikacja Wyceny SEO
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Lista Wycen</a>
+                <a class="nav-link" href="/pricelist">Cennik</a>
+                <a class="nav-link active" href="/templates">Szablony Zadań</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="text-light">Zarządzanie Szablonami Zadań</h1>
+                    <button class="btn btn-primary" onclick="addNewTemplate()">
+                        <i class="bi bi-plus-circle"></i> Dodaj Nowy Szablon
+                    </button>
+                </div>
+
+                <div class="card glass-card glass-card-hover slide-up">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light">Lista Szablonów Zadań</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="templatesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nazwa zadania</th>
+                                        <th>Specjalista</th>
+                                        <th>Miesiąc realizacji (zalecany)</th>
+                                        <th>Liczba godzin/jednostek</th>
+                                        <th>Cena za jednostkę [zł]</th>
+                                        <th>Cena razem [zł]</th>
+                                        <th>J.m. klient</th>
+                                        <th>Cena klient [zł]</th>
+                                        <th>Miesiąc realizacji - klient</th>
+                                        <th>Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Templates will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Template Modal -->
+    <div class="modal fade" id="templateModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="templateModalTitle">Dodaj nowy szablon</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="templateForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="templateTaskName" class="form-label">Nazwa zadania</label>
+                                    <input type="text" class="form-control" id="templateTaskName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateSpecialistType" class="form-label">Specjalista</label>
+                                    <select class="form-select" id="templateSpecialistType" required>
+                                        <option value="">Wybierz specjalistę</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateMonthExecution" class="form-label">Miesiąc realizacji (zalecany)</label>
+                                    <input type="text" class="form-control" id="templateMonthExecution" placeholder="np. Miesiąc 1">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateHoursOrUnits" class="form-label">Liczba godzin/jednostek</label>
+                                    <input type="number" class="form-control" id="templateHoursOrUnits" step="0.01" min="0" value="0">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="templatePricePerUnit" class="form-label">Cena za jednostkę [zł]</label>
+                                    <input type="number" class="form-control" id="templatePricePerUnit" step="0.01" min="0" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateTotalPrice" class="form-label">Cena razem [zł]</label>
+                                    <input type="number" class="form-control" id="templateTotalPrice" step="0.01" min="0" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateClientUnits" class="form-label">J.m. klient</label>
+                                    <input type="number" class="form-control" id="templateClientUnits" step="0.01" min="0" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateClientPrice" class="form-label">Cena klient [zł]</label>
+                                    <input type="number" class="form-control" id="templateClientPrice" step="0.01" min="0" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="templateClientMonth" class="form-label">Miesiąc realizacji - klient</label>
+                                    <select class="form-select" id="templateClientMonth" required>
+                                        <option value="">Wybierz miesiąc</option>
+                                        <option value="Miesiąc 01">Miesiąc 01</option>
+                                        <option value="Miesiąc 02">Miesiąc 02</option>
+                                        <option value="Miesiąc 03">Miesiąc 03</option>
+                                        <option value="Miesiąc 04">Miesiąc 04</option>
+                                        <option value="Miesiąc 05">Miesiąc 05</option>
+                                        <option value="Miesiąc 06">Miesiąc 06</option>
+                                        <option value="Miesiąc 07">Miesiąc 07</option>
+                                        <option value="Miesiąc 08">Miesiąc 08</option>
+                                        <option value="Miesiąc 09">Miesiąc 09</option>
+                                        <option value="Miesiąc 10">Miesiąc 10</option>
+                                        <option value="Miesiąc 11">Miesiąc 11</option>
+                                        <option value="Miesiąc 12">Miesiąc 12</option>
+                                        <option value="Od Miesiąc 02">Od Miesiąc 02</option>
+                                        <option value="Od Miesiąc 03">Od Miesiąc 03</option>
+                                        <option value="Od Miesiąc 04">Od Miesiąc 04</option>
+                                        <option value="Od Miesiąc 05">Od Miesiąc 05</option>
+                                        <option value="Od Miesiąc 06">Od Miesiąc 06</option>
+                                        <option value="Od Miesiąc 07">Od Miesiąc 07</option>
+                                        <option value="Od Miesiąc 08">Od Miesiąc 08</option>
+                                        <option value="Od Miesiąc 09">Od Miesiąc 09</option>
+                                        <option value="Od Miesiąc 10">Od Miesiąc 10</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTemplate()">Zapisz</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/task_templates.js') }}"></script>
+</body>
+</html>

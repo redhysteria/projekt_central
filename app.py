@@ -1,0 +1,555 @@
+from flask import Flask, render_template, request, jsonify, send_file
+from flask_sqlalchemy import SQLAlchemy
+from flask_restful import Api, Resource
+from datetime import datetime, timezone
+import os
+import asyncio
+
+# Import models and business logic
+from models import db, Pricelist, Quote, QuoteItem, MonthlyDistribution, DefaultTask, Competitor, SeoAnalysis
+from business_logic import BusinessLogic
+from excel_export import ExcelExporter
+from competitors_logic import competitors_logic
+from seo_analysis_logic import seo_analysis_logic
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quotes.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+api = Api(app)
+
+# Initialize business logic
+business_logic = BusinessLogic()
+
+# Initialize database and default data
+with app.app_context():
+    db.create_all()
+    
+    # Initialize pricelist if empty
+    if Pricelist.query.count() == 0:
+        default_prices = [
+            ('Expert SEO', 300, 'hour'),
+            ('Senior SEO', 300, 'hour'),
+            ('Mid SEO', 250, 'hour'),
+            ('Junior SEO', 150, 'hour'),
+            ('Senior Content', 200, 'hour'),
+            ('Mid Content', 150, 'hour'),
+            ('Junior Content', 100, 'hour'),
+            ('Copywriter Content', 40, '1000chars'),
+            ('Copywriter LB', 20, '1000chars'),
+            ('Copywriter Treści marketingowe', 80, '1000chars'),
+            ('Copywriter Treści AI', 20, '1000chars'),
+            ('Formatka', 50, 'piece'),
+            ('1 link (średnia cena)', 400, 'piece')
+        ]
+        
+        for specialist_type, price, unit_type in default_prices:
+            pricelist_item = Pricelist(
+                specialist_type=specialist_type,
+                price_per_unit=price,
+                unit_type=unit_type
+            )
+            db.session.add(pricelist_item)
+        
+        db.session.commit()
+    
+    # Initialize default tasks if empty
+    if DefaultTask.query.count() == 0:
+        default_tasks = [
+            ('Baza słów kluczowych', 'Mid SEO', 'Miesiąc 1', 12, 250, 3000, 12, 3000, 'Miesiąc 01'),
+            ('Audyt SEO Strona + Sklep', 'Mid SEO', 'Miesiąc 1', 40, 250, 10000, 40, 10000, 'Miesiąc 01'),
+            ('Audyt linków zewnętrznych', 'Mid SEO', 'Miesiąc 3', 16, 250, 4000, 16, 4000, 'Miesiąc 03'),
+            ('Audyt treści', 'Mid Content', 'Miesiąc 2', 15, 150, 2250, 15, 2250, 'Miesiąc 02'),
+            ('Audyt Page Experience', 'Mid SEO', 'Miesiąc 1', 20, 250, 5000, 20, 5000, 'Miesiąc 01'),
+            ('Audyt Google News', 'Mid SEO', 'Miesiąc 1', 16, 250, 4000, 16, 4000, 'Miesiąc 01'),
+            ('Audyt UX i CRO', 'Mid SEO', 'Miesiąc 1', 20, 250, 5000, 20, 5000, 'Miesiąc 01'),
+            ('Strategia SEO', 'Senior SEO', 'Miesiąc 1', 4, 300, 1200, 4, 1200, 'Miesiąc 01'),
+            ('Migracja domeny', 'Senior SEO', 'Miesiąc 1', 30, 300, 9000, 30, 9000, 'Miesiąc 01'),
+            ('Opieka zespołu SEO (~6h)', 'Mid SEO', 'Od Miesiąc 2', 4, 250, 1000, 4, 1000, 'Od Miesiąc 02'),
+            ('Linkowanie wewnętrzne - wytyczne', 'Mid SEO', 'Miesiąc 2', 20, 250, 5000, 20, 5000, 'Miesiąc 02'),
+            ('Linkowanie wewnętrzne - realizacja', 'Junior SEO', 'Miesiąc 3', 20, 150, 3000, 20, 3000, 'Miesiąc 03'),
+            ('Plan treści (24 szt.)', 'Mid SEO', 'Od Miesiąc 2', 2, 250, 500, 2, 500, 'Od Miesiąc 02'),
+            ('Formatka (4 szt.)', 'Formatka', 'Od Miesiąc 2', 10, 50, 500, 4, 200, 'Od Miesiąc 02'),
+            ('Strategia linkbuildingowa', 'Mid SEO', 'Miesiąc 2', 12, 250, 3000, 12, 3000, 'Miesiąc 02'),
+            ('Linkbuilding - marża', 'Senior SEO', 'Od Miesiąc 2', 1, 300, 300, 1, 300, 'Od Miesiąc 02'),
+            ('Raportowanie', 'Mid SEO', 'Miesiąc 3', 6, 250, 1500, 6, 1500, 'Miesiąc 03'),
+            ('Raport Looker Studio', 'Mid SEO', 'Miesiąc 6', 6, 250, 1500, 6, 1500, 'Miesiąc 06'),
+            ('GA4 - konfiguracja', 'Mid SEO', 'Miesiąc 12', 6, 250, 1500, 6, 1500, 'Miesiąc 12'),
+            ('GA4 + GTM - weryfikacja', 'Senior SEO', 'Miesiąc 1', 2, 300, 600, 2, 600, 'Miesiąc 01'),
+            ('GTM - konfiguracja śledzenia', 'Senior SEO', 'Miesiąc 1', 12, 300, 3600, 12, 3600, 'Miesiąc 01'),
+            ('Audyt i wytyczne do GMF', 'Mid SEO', 'Miesiąc 2', 10, 250, 2500, 10, 2500, 'Miesiąc 02'),
+            ('Obsługa GMF', 'Mid SEO', 'Od Miesiąc 1', 2, 250, 500, 2, 500, 'Od Miesiąc 01'),
+            ('Obsługa Google Ads', 'Mid SEO', 'Od Miesiąc 1', 5000, 20, 1000, 5000, 1000, 'Od Miesiąc 01'),
+            ('Obsługa Facebook', 'Mid SEO', 'Od Miesiąc 1', 1, 1500, 1500, 1, 1500, 'Od Miesiąc 01'),
+            ('Napisanie treści (xMnożnik)', 'Copywriter Content', 'Miesiąc 2', 5, 40, 200, 5, 200, 'Miesiąc 02'),
+            ('Napisanie treści Marketingowych', 'Copywriter Treści marketingowe', 'Miesiąc 1', 0, 80, 0, 0, 0, 'Miesiąc 01'),
+            ('Napisanie treści AI (1x1)', 'Copywriter Treści AI', 'Od Miesiąc 2', 0, 20, 0, 0, 0, 'Od Miesiąc 02'),
+            ('Facebook Ads', 'Mid SEO', 'Od Miesiąc 1', 4, 1500, 6000, 4, 6000, 'Od Miesiąc 01')
+        ]
+        
+        for task_name, specialist_type, month_execution, hours_or_units, price_per_unit, total_price, client_units, client_price, client_month in default_tasks:
+            default_task = DefaultTask(
+                task_name=task_name,
+                specialist_type=specialist_type,
+                month_execution=month_execution,
+                hours_or_units=hours_or_units,
+                price_per_unit=price_per_unit,
+                total_price=total_price,
+                client_units=client_units,
+                client_price=client_price,
+                client_month=client_month
+            )
+            db.session.add(default_task)
+        
+        db.session.commit()
+
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/quotes')
+def quotes():
+    return render_template('quote_editor.html')
+
+@app.route('/pricelist')
+def pricelist():
+    return render_template('pricelist.html')
+
+@app.route('/templates')
+def templates():
+    return render_template('task_templates.html')
+
+# API Resources
+class PricelistAPI(Resource):
+    def get(self):
+        pricelist = Pricelist.query.all()
+        return {
+            'pricelist': [{
+                'id': item.id,
+                'specialist_type': item.specialist_type,
+                'price_per_unit': item.price_per_unit,
+                'unit_type': item.unit_type
+            } for item in pricelist]
+        }
+    
+    def put(self, item_id):
+        data = request.get_json()
+        item = Pricelist.query.get_or_404(item_id)
+        item.price_per_unit = data.get('price_per_unit', item.price_per_unit)
+        db.session.commit()
+        return {'message': 'Price updated successfully'}
+
+class QuotesAPI(Resource):
+    def get(self, quote_id=None):
+        if quote_id:
+            quote = Quote.query.get_or_404(quote_id)
+            items = QuoteItem.query.filter_by(quote_id=quote_id).all()
+            monthly_dist = {}
+            for item in items:
+                monthly_dist[item.id] = {
+                    dist.month_number: dist.amount 
+                    for dist in MonthlyDistribution.query.filter_by(quote_item_id=item.id)
+                }
+            
+            return {
+                'quote': {
+                    'id': quote.id,
+                    'name': quote.name,
+                    'created_at': quote.created_at.isoformat(),
+                    'updated_at': quote.updated_at.isoformat(),
+                    'lb_budget': quote.lb_budget,
+                    'chars_in_thousands': quote.chars_in_thousands,
+                    'rate_per_1000_chars': quote.rate_per_1000_chars,
+                    'rate_multiplier': quote.rate_multiplier,
+                    'num_texts': quote.num_texts,
+                    'lb_marza_month': quote.lb_marza_month,
+                    'lb_budzet_month': quote.lb_budzet_month,
+                    'content_month': quote.content_month
+                },
+                'items': [{
+                    'id': item.id,
+                    'task_name': item.task_name,
+                    'specialist_type': item.specialist_type,
+                    'month_execution': item.month_execution,
+                    'hours_or_units': item.hours_or_units,
+                    'price_per_unit': item.price_per_unit,
+                    'total_price': item.total_price,
+                    'client_units': item.client_units,
+                    'client_price': item.client_price,
+                    'client_month': item.client_month,
+                    'is_auto_generated': item.is_auto_generated,
+                    'monthly_distribution': monthly_dist.get(item.id, {})
+                } for item in items]
+            }
+        else:
+            quotes = Quote.query.all()
+            return {
+                'quotes': [{
+                    'id': quote.id,
+                    'name': quote.name,
+                    'created_at': quote.created_at.isoformat(),
+                    'updated_at': quote.updated_at.isoformat(),
+                    'total_value': sum(item.client_price for item in quote.items)
+                } for quote in quotes]
+            }
+    
+    def post(self):
+        data = request.get_json()
+        quote = Quote(
+            name=data.get('name', 'Nowa wycena'),
+            lb_budget=data.get('lb_budget', 0),
+            chars_in_thousands=data.get('chars_in_thousands', 0),
+            rate_per_1000_chars=data.get('rate_per_1000_chars', 0),
+            rate_multiplier=data.get('rate_multiplier', 1),
+            num_texts=data.get('num_texts', 0),
+            lb_marza_month=data.get('lb_marza_month', 'Od Miesiąc 02'),
+            lb_budzet_month=data.get('lb_budzet_month', 'Od Miesiąc 02'),
+            content_month=data.get('content_month', 'Od Miesiąc 02')
+        )
+        db.session.add(quote)
+        db.session.commit()
+        
+        # Auto generation removed - tasks are now added manually via UI buttons
+        
+        return {'id': quote.id, 'message': 'Quote created successfully'}
+    
+    def put(self, quote_id):
+        data = request.get_json()
+        quote = Quote.query.get_or_404(quote_id)
+        
+        # Update quote parameters
+        quote.name = data.get('name', quote.name)
+        quote.lb_budget = data.get('lb_budget', quote.lb_budget)
+        quote.chars_in_thousands = data.get('chars_in_thousands', quote.chars_in_thousands)
+        quote.rate_per_1000_chars = data.get('rate_per_1000_chars', quote.rate_per_1000_chars)
+        quote.rate_multiplier = data.get('rate_multiplier', quote.rate_multiplier)
+        quote.num_texts = data.get('num_texts', quote.num_texts)
+        quote.lb_marza_month = data.get('lb_marza_month', quote.lb_marza_month)
+        quote.lb_budzet_month = data.get('lb_budzet_month', quote.lb_budzet_month)
+        quote.content_month = data.get('content_month', quote.content_month)
+        quote.updated_at = datetime.now(timezone.utc)
+        
+        db.session.commit()
+        
+        # Auto generation removed - tasks are now added manually via UI buttons
+        
+        return {'message': 'Quote updated successfully'}
+    
+    def delete(self, quote_id):
+        quote = Quote.query.get_or_404(quote_id)
+        
+        # Delete all related items and monthly distributions
+        for item in quote.items:
+            MonthlyDistribution.query.filter_by(quote_item_id=item.id).delete()
+            db.session.delete(item)
+        
+        # Delete all related competitors
+        Competitor.query.filter_by(quote_id=quote_id).delete()
+        
+        # Delete all related SEO analyses
+        SeoAnalysis.query.filter_by(quote_id=quote_id).delete()
+        
+        db.session.delete(quote)
+        db.session.commit()
+        return {'message': 'Quote deleted successfully'}
+
+class QuoteItemsAPI(Resource):
+    def post(self, quote_id):
+        data = request.get_json()
+        item = QuoteItem(
+            quote_id=quote_id,
+            task_name=data.get('task_name', ''),
+            specialist_type=data.get('specialist_type', ''),
+            month_execution=data.get('month_execution', ''),
+            hours_or_units=data.get('hours_or_units', 0),
+            price_per_unit=data.get('price_per_unit', 0),
+            total_price=data.get('total_price', 0),
+            client_units=data.get('client_units', 0),
+            client_price=data.get('client_price', 0),
+            client_month=data.get('client_month', ''),
+            is_auto_generated=False
+        )
+        db.session.add(item)
+        db.session.commit()
+        
+        # Generate monthly distribution
+        business_logic.generate_monthly_distribution(item.id)
+        
+        return {'id': item.id, 'message': 'Item added successfully'}
+    
+    def put(self, quote_id, item_id):
+        data = request.get_json()
+        item = QuoteItem.query.filter_by(id=item_id, quote_id=quote_id).first_or_404()
+        
+        item.task_name = data.get('task_name', item.task_name)
+        item.specialist_type = data.get('specialist_type', item.specialist_type)
+        item.month_execution = data.get('month_execution', item.month_execution)
+        item.hours_or_units = data.get('hours_or_units', item.hours_or_units)
+        item.price_per_unit = data.get('price_per_unit', item.price_per_unit)
+        item.total_price = data.get('total_price', item.total_price)
+        item.client_units = data.get('client_units', item.client_units)
+        item.client_price = data.get('client_price', item.client_price)
+        item.client_month = data.get('client_month', item.client_month)
+        
+        db.session.commit()
+        
+        # Regenerate monthly distribution
+        business_logic.regenerate_monthly_distribution(item_id)
+        
+        return {'message': 'Item updated successfully'}
+    
+    def delete(self, quote_id, item_id):
+        item = QuoteItem.query.filter_by(id=item_id, quote_id=quote_id).first_or_404()
+        
+        # Delete monthly distributions
+        MonthlyDistribution.query.filter_by(quote_item_id=item_id).delete()
+        db.session.delete(item)
+        db.session.commit()
+        
+        return {'message': 'Item deleted successfully'}
+
+class DefaultTasksAPI(Resource):
+    def get(self, task_id=None):
+        if task_id:
+            task = DefaultTask.query.get_or_404(task_id)
+            return {'default_task': task.to_dict()}
+        else:
+            default_tasks = DefaultTask.query.all()
+            return {
+                'default_tasks': [task.to_dict() for task in default_tasks]
+            }
+    
+    def post(self):
+        data = request.get_json()
+        task = DefaultTask(
+            task_name=data.get('task_name', ''),
+            specialist_type=data.get('specialist_type', ''),
+            month_execution=data.get('month_execution', ''),
+            hours_or_units=data.get('hours_or_units', 0),
+            price_per_unit=data.get('price_per_unit', 0),
+            total_price=data.get('total_price', 0),
+            client_units=data.get('client_units', 0),
+            client_price=data.get('client_price', 0),
+            client_month=data.get('client_month', '')
+        )
+        db.session.add(task)
+        db.session.commit()
+        return {'id': task.id, 'message': 'Template created successfully'}
+    
+    def put(self, task_id):
+        data = request.get_json()
+        task = DefaultTask.query.get_or_404(task_id)
+        
+        task.task_name = data.get('task_name', task.task_name)
+        task.specialist_type = data.get('specialist_type', task.specialist_type)
+        task.month_execution = data.get('month_execution', task.month_execution)
+        task.hours_or_units = data.get('hours_or_units', task.hours_or_units)
+        task.price_per_unit = data.get('price_per_unit', task.price_per_unit)
+        task.total_price = data.get('total_price', task.total_price)
+        task.client_units = data.get('client_units', task.client_units)
+        task.client_price = data.get('client_price', task.client_price)
+        task.client_month = data.get('client_month', task.client_month)
+        
+        db.session.commit()
+        return {'message': 'Template updated successfully'}
+    
+    def delete(self, task_id):
+        task = DefaultTask.query.get_or_404(task_id)
+        db.session.delete(task)
+        db.session.commit()
+        return {'message': 'Template deleted successfully'}
+
+class ExportAPI(Resource):
+    def get(self, quote_id):
+        quote = Quote.query.get_or_404(quote_id)
+        exporter = ExcelExporter()
+        
+        # Create temporary file
+        filename = f"wycena_{quote.name.replace(' ', '_')}.xlsx"
+        filepath = os.path.join('temp', filename)
+        
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+        
+        exporter.export_quote(quote_id, filepath)
+        
+        return send_file(filepath, as_attachment=True, download_name=filename)
+
+class CompetitorsAPI(Resource):
+    def get(self, quote_id):
+        """Pobierz listę konkurentów dla danej wyceny."""
+        quote = Quote.query.get_or_404(quote_id)
+        competitors = Competitor.query.filter_by(quote_id=quote_id).order_by(Competitor.occurrences.desc()).all()
+        
+        return {
+            'competitors': [competitor.to_dict() for competitor in competitors]
+        }
+    
+    def post(self, quote_id):
+        """Analizuj konkurencję na podstawie słów kluczowych."""
+        print(f"🎯 POST /api/quotes/{quote_id}/competitors - rozpoczęcie analizy")
+        
+        quote = Quote.query.get_or_404(quote_id)
+        data = request.get_json()
+        
+        keywords_text = data.get('keywords', '')
+        print(f"📝 Otrzymano słowa kluczowe: {keywords_text[:100]}...")
+        
+        if not keywords_text:
+            print("❌ Brak słów kluczowych")
+            return {'error': 'Brak słów kluczowych'}, 400
+        
+        # Parsuj słowa kluczowe
+        keywords = competitors_logic.parse_keywords_input(keywords_text)
+        print(f"🔍 Sparsowano {len(keywords)} słów kluczowych: {keywords[:5]}...")
+        
+        # Waliduj
+        is_valid, error_message = competitors_logic.validate_keywords(keywords)
+        if not is_valid:
+            print(f"❌ Walidacja nieudana: {error_message}")
+            return {'error': error_message}, 400
+        
+        print("✅ Walidacja przeszła pomyślnie")
+        
+        try:
+            print("🚀 Rozpoczynam analizę asynchroniczną...")
+            # Uruchom analizę asynchronicznie
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            domain_counts = loop.run_until_complete(competitors_logic.analyze_keywords(keywords))
+            loop.close()
+            
+            print(f"📊 Analiza zakończona, znaleziono {len(domain_counts)} domen")
+            
+            # Usuń poprzednie wyniki dla tej wyceny
+            deleted_count = Competitor.query.filter_by(quote_id=quote_id).count()
+            Competitor.query.filter_by(quote_id=quote_id).delete()
+            print(f"🗑️ Usunięto {deleted_count} poprzednich wyników")
+            
+            # Zapisz nowe wyniki
+            competitors = []
+            for domain, count in domain_counts.items():
+                competitor = Competitor(
+                    quote_id=quote_id,
+                    domain=domain,
+                    occurrences=count
+                )
+                db.session.add(competitor)
+                competitors.append(competitor)
+            
+            db.session.commit()
+            print(f"💾 Zapisano {len(competitors)} nowych konkurentów do bazy danych")
+            
+            return {
+                'message': f'Analiza zakończona. Znaleziono {len(competitors)} konkurentów.',
+                'competitors': [competitor.to_dict() for competitor in competitors]
+            }
+            
+        except Exception as e:
+            print(f"💥 Błąd podczas analizy: {str(e)}")
+            db.session.rollback()
+            return {'error': f'Błąd podczas analizy: {str(e)}'}, 500
+
+class SeoAnalysisAPI(Resource):
+    def get(self, quote_id):
+        """Pobierz wyniki analizy SEO dla danej wyceny."""
+        quote = Quote.query.get_or_404(quote_id)
+        seo_results = SeoAnalysis.query.filter_by(quote_id=quote_id).order_by(SeoAnalysis.domain).all()
+        
+        # Oblicz średnie
+        results_data = [result.to_dict() for result in seo_results]
+        averages = seo_analysis_logic.calculate_averages(results_data)
+        
+        return {
+            'seo_results': results_data,
+            'averages': averages,
+            'count': len(results_data)
+        }
+    
+    def post(self, quote_id):
+        """Analizuj domeny SEO."""
+        print(f"🎯 POST /api/quotes/{quote_id}/seo-analysis - rozpoczęcie analizy SEO")
+        
+        quote = Quote.query.get_or_404(quote_id)
+        data = request.get_json()
+        
+        domains_text = data.get('domains', '')
+        print(f"📝 Otrzymano domeny: {domains_text[:100]}...")
+        
+        if not domains_text:
+            print("❌ Brak domen")
+            return {'error': 'Brak domen do analizy'}, 400
+        
+        # Parsuj domeny
+        domains = seo_analysis_logic.parse_domains_input(domains_text)
+        print(f"🔍 Sparsowano {len(domains)} domen: {domains[:3]}...")
+        
+        # Waliduj
+        is_valid, error_message = seo_analysis_logic.validate_domains(domains)
+        if not is_valid:
+            print(f"❌ Walidacja nieudana: {error_message}")
+            return {'error': error_message}, 400
+        
+        print("✅ Walidacja przeszła pomyślnie")
+        
+        try:
+            print("🚀 Rozpoczynam analizę SEO...")
+            # Uruchom analizę
+            results = seo_analysis_logic.analyze_domains(quote_id, domains)
+            
+            # Oblicz średnie
+            averages = seo_analysis_logic.calculate_averages(results)
+            
+            print(f"📊 Analiza SEO zakończona, przeanalizowano {len(results)} domen")
+            
+            return {
+                'message': f'Analiza SEO zakończona. Przeanalizowano {len(results)} domen.',
+                'seo_results': results,
+                'averages': averages,
+                'count': len(results)
+            }
+            
+        except Exception as e:
+            print(f"💥 Błąd podczas analizy SEO: {str(e)}")
+            db.session.rollback()
+            return {'error': f'Błąd podczas analizy SEO: {str(e)}'}, 500
+
+class SeoAnalysisExportAPI(Resource):
+    def get(self, quote_id):
+        """Eksportuj wyniki analizy SEO do CSV."""
+        quote = Quote.query.get_or_404(quote_id)
+        
+        # Sprawdź czy są wyniki do eksportu
+        seo_results = SeoAnalysis.query.filter_by(quote_id=quote_id).all()
+        if not seo_results:
+            return {'error': 'Brak wyników analizy SEO do eksportu'}, 404
+        
+        # Utwórz plik CSV
+        filename = f"analiza_seo_{quote.name.replace(' ', '_')}.csv"
+        filepath = os.path.join('temp', filename)
+        
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+        
+        # Eksportuj do CSV
+        success = seo_analysis_logic.export_to_csv(quote_id, filepath)
+        
+        if success:
+            return send_file(filepath, as_attachment=True, download_name=filename)
+        else:
+            return {'error': 'Błąd podczas eksportu CSV'}, 500
+
+# Register API resources
+api.add_resource(PricelistAPI, '/api/pricelist', '/api/pricelist/<int:item_id>')
+api.add_resource(QuotesAPI, '/api/quotes', '/api/quotes/<int:quote_id>')
+api.add_resource(QuoteItemsAPI, '/api/quotes/<int:quote_id>/items', '/api/quotes/<int:quote_id>/items/<int:item_id>')
+api.add_resource(DefaultTasksAPI, '/api/default-tasks', '/api/default-tasks/<int:task_id>')
+api.add_resource(ExportAPI, '/api/quotes/<int:quote_id>/export')
+api.add_resource(CompetitorsAPI, '/api/quotes/<int:quote_id>/competitors')
+api.add_resource(SeoAnalysisAPI, '/api/quotes/<int:quote_id>/seo-analysis')
+api.add_resource(SeoAnalysisExportAPI, '/api/quotes/<int:quote_id>/seo-analysis/export')
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5002)
