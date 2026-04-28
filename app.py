@@ -2,15 +2,21 @@ from flask import Flask, render_template, request, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api, Resource
 from datetime import datetime, timezone
+import json
 import os
 import asyncio
+import requests as http_requests
 
 # Import models and business logic
-from models import db, Pricelist, Quote, QuoteItem, MonthlyDistribution, DefaultTask, Competitor, SeoAnalysis
+from models import db, Pricelist, Quote, QuoteItem, MonthlyDistribution, DefaultTask, Competitor, SeoAnalysis, ForecastSettings
 from business_logic import BusinessLogic
 from excel_export import ExcelExporter
 from competitors_logic import competitors_logic
 from seo_analysis_logic import seo_analysis_logic
+from forecast_logic import extract_client_domain, pick_market_leader, calculate_forecast
+from ahrefs_api_client import ahrefs_api_client, AhrefsApiError
+from ga4_prophet import parse_ga4_csv, run_prophet_forecast
+from config import config
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quotes.db'
@@ -25,7 +31,16 @@ business_logic = BusinessLogic()
 # Initialize database and default data
 with app.app_context():
     db.create_all()
-    
+
+    import sqlite3
+    _conn = sqlite3.connect(app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', 'instance/'))
+    try:
+        _conn.execute('ALTER TABLE quote ADD COLUMN brief_json TEXT')
+        _conn.commit()
+    except sqlite3.OperationalError:
+        pass
+    _conn.close()
+
     # Initialize pricelist if empty
     if Pricelist.query.count() == 0:
         default_prices = [
@@ -250,6 +265,9 @@ class QuotesAPI(Resource):
         
         # Delete all related SEO analyses
         SeoAnalysis.query.filter_by(quote_id=quote_id).delete()
+        
+        # Delete forecast settings
+        ForecastSettings.query.filter_by(quote_id=quote_id).delete()
         
         db.session.delete(quote)
         db.session.commit()
@@ -541,6 +559,518 @@ class SeoAnalysisExportAPI(Resource):
         else:
             return {'error': 'Błąd podczas eksportu CSV'}, 500
 
+class ForecastSeasonalityAPI(Resource):
+    def get(self, quote_id):
+        """Pobierz 12 mnożników sezonowości z Ahrefs metrics-history dla lidera."""
+        Quote.query.get_or_404(quote_id)
+        leader = request.args.get('leader', '').strip()
+        if not leader:
+            return {'error': 'Brak parametru leader (domena lidera rynku)'}, 400
+
+        try:
+            seasonality = ahrefs_api_client.compute_seasonality(leader, months=24)
+            history = ahrefs_api_client.get_organic_traffic_history(leader, months=24)
+            return {
+                'leader': leader,
+                'seasonality': seasonality,
+                'history': history,
+            }
+        except AhrefsApiError as e:
+            return {'error': f'Ahrefs API error: {str(e)}'}, 502
+
+
+class ForecastAPI(Resource):
+    def get(self, quote_id):
+        """Wczytaj zapisany forecast."""
+        Quote.query.get_or_404(quote_id)
+        fs = ForecastSettings.query.filter_by(quote_id=quote_id).first()
+        if not fs:
+            return {'forecast_settings': None}
+        result = fs.to_dict()
+        try:
+            result['seasonality'] = json.loads(fs.seasonality_json) if fs.seasonality_json else [1.0] * 12
+        except (json.JSONDecodeError, TypeError):
+            result['seasonality'] = [1.0] * 12
+        try:
+            forecast_data = json.loads(fs.forecast_json) if fs.forecast_json else None
+            result['forecast'] = forecast_data
+            if isinstance(forecast_data, dict):
+                for k in ['variance_top', 'variance_traffic', 'variance_revenue',
+                           'kw_per_url_pct', 'traffic_per_kw_pct']:
+                    if k in forecast_data:
+                        result[k] = forecast_data[k]
+        except (json.JSONDecodeError, TypeError):
+            result['forecast'] = None
+        try:
+            result['prophet_forecast'] = json.loads(fs.prophet_forecast_json) if fs.prophet_forecast_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['prophet_forecast'] = None
+        try:
+            result['ga4_seasonality'] = json.loads(fs.ga4_seasonality_json) if fs.ga4_seasonality_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['ga4_seasonality'] = None
+        return {'forecast_settings': result}
+
+    def post(self, quote_id):
+        """Zapisz ustawienia forecastu i opcjonalnie oblicz server-side."""
+        Quote.query.get_or_404(quote_id)
+        data = request.get_json() or {}
+
+        fs = ForecastSettings.query.filter_by(quote_id=quote_id).first()
+        if not fs:
+            fs = ForecastSettings(quote_id=quote_id)
+            db.session.add(fs)
+
+        fs.client_domain = data.get('client_domain', fs.client_domain or '')
+        fs.leader_domain = data.get('leader_domain', fs.leader_domain or '')
+        fs.conversion_rate = float(data.get('conversion_rate', fs.conversion_rate or 0.018))
+        fs.aov = float(data.get('aov', fs.aov or 0))
+        fs.margin = float(data.get('margin', fs.margin or 0.15))
+        fs.fixed_seo_budget = float(data.get('fixed_seo_budget', fs.fixed_seo_budget or 0))
+        fs.monthly_content_volume = int(data.get('monthly_content_volume', fs.monthly_content_volume or 0))
+
+        lb_rate = data.get('lb_rate_override')
+        fs.lb_rate_override = float(lb_rate) if lb_rate is not None else None
+        lb_cost = data.get('lb_cost_override')
+        fs.lb_cost_override = float(lb_cost) if lb_cost is not None else None
+
+        seasonality = data.get('seasonality')
+        if seasonality and isinstance(seasonality, list) and len(seasonality) == 12:
+            fs.seasonality_json = json.dumps(seasonality)
+
+        extra_keys = ['variance_top', 'variance_traffic', 'variance_revenue',
+                      'kw_per_url_pct', 'traffic_per_kw_pct']
+        forecast = data.get('forecast') or {}
+        for k in extra_keys:
+            if k in data:
+                forecast[k] = data[k]
+        if forecast:
+            fs.forecast_json = json.dumps(forecast)
+
+        db.session.commit()
+        return {'message': 'Forecast settings saved', 'id': fs.id}
+
+
+class GA4UploadAPI(Resource):
+    def post(self, quote_id):
+        """Upload GA4 CSV, run Prophet, save results."""
+        Quote.query.get_or_404(quote_id)
+
+        if 'file' not in request.files:
+            return {'error': 'Brak pliku CSV (pole: file)'}, 400
+
+        file = request.files['file']
+        if not file.filename:
+            return {'error': 'Pusty plik'}, 400
+
+        try:
+            content = file.read()
+            df = parse_ga4_csv(content)
+            prophet_result = run_prophet_forecast(df, periods=12)
+        except ValueError as e:
+            return {'error': f'Błąd parsowania CSV: {str(e)}'}, 400
+        except Exception as e:
+            return {'error': f'Błąd Prophet: {str(e)}'}, 500
+
+        fs = ForecastSettings.query.filter_by(quote_id=quote_id).first()
+        if not fs:
+            fs = ForecastSettings(quote_id=quote_id)
+            db.session.add(fs)
+
+        fs.ga4_csv_filename = file.filename
+        fs.ga4_data_json = json.dumps(prophet_result.get('history', []))
+        fs.prophet_forecast_json = json.dumps(prophet_result.get('forecast', []))
+        fs.ga4_seasonality_json = json.dumps(prophet_result.get('seasonality', [1.0] * 12))
+
+        if prophet_result.get('ga4_metrics', {}).get('avg_conversion_rate'):
+            fs.conversion_rate = prophet_result['ga4_metrics']['avg_conversion_rate']
+        if prophet_result.get('ga4_metrics', {}).get('avg_aov'):
+            fs.aov = prophet_result['ga4_metrics']['avg_aov']
+
+        db.session.commit()
+
+        return {
+            'message': 'GA4 data processed with Prophet',
+            'filename': file.filename,
+            'data_months': prophet_result.get('data_months', 0),
+            'forecast_months': len(prophet_result.get('forecast', [])),
+            'seasonality': prophet_result.get('seasonality', []),
+            'ga4_metrics': prophet_result.get('ga4_metrics', {}),
+            'prophet_forecast': prophet_result.get('forecast', []),
+        }
+
+    def delete(self, quote_id):
+        """Remove GA4/Prophet data."""
+        Quote.query.get_or_404(quote_id)
+        fs = ForecastSettings.query.filter_by(quote_id=quote_id).first()
+        if fs:
+            fs.ga4_csv_filename = None
+            fs.ga4_data_json = None
+            fs.prophet_forecast_json = None
+            fs.ga4_seasonality_json = None
+            db.session.commit()
+        return {'message': 'GA4 data removed'}
+
+
+class KeywordsGenerateAPI(Resource):
+    """Generowanie słów kluczowych za pomocą Gemini AI."""
+
+    def post(self):
+        data = request.get_json() or {}
+        domain = (data.get('domain') or '').strip()
+        description = (data.get('description') or '').strip()
+
+        if not description:
+            return {'error': 'Podaj opis biznesu klienta'}, 400
+
+        if not config.GEMINI_API_KEY:
+            return {'error': 'Brak GEMINI_API_KEY w .env'}, 500
+
+        prompt = (
+            f"Jesteś ekspertem SEO. Klient prowadzi biznes w domenie: {domain or 'nie podano'}.\n"
+            f"Opis biznesu klienta: {description}\n\n"
+            f"Wygeneruj listę 20-50 słów kluczowych (fraz), które potencjalni klienci mogą wpisywać w Google, "
+            f"szukając produktów lub usług tego biznesu. Uwzględnij frazy informacyjne, transakcyjne i lokalne.\n\n"
+            f"WAŻNE: Zwróć WYŁĄCZNIE słowa kluczowe, jedno na linię. Bez numeracji, bez komentarzy, bez nagłówków."
+        )
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+
+            keywords = [line.strip() for line in text.split('\n') if line.strip()]
+            return {'keywords': keywords}
+        except Exception as e:
+            return {'error': f'Błąd Gemini API: {str(e)}'}, 500
+
+
+class BrandBriefAPI(Resource):
+    """Generowanie briefu marki za pomocą Gemini AI — wieloźródłowe podejście."""
+
+    MAX_PAGE_CHARS = 10000
+
+    @staticmethod
+    def _scrape_page(url: str) -> str:
+        """Pobiera treść strony przez Jina Reader API (renderuje JS)."""
+        try:
+            headers = {"Accept": "text/markdown"}
+            if config.JINA_API_KEY:
+                headers["Authorization"] = f"Bearer {config.JINA_API_KEY}"
+            resp = http_requests.get(
+                f"https://r.jina.ai/{url}",
+                headers=headers,
+                timeout=25,
+            )
+            if resp.status_code == 200 and len(resp.text.strip()) > 100:
+                return resp.text.strip()
+        except Exception as exc:
+            print(f"⚠️  BrandBrief: nie udało się pobrać {url}: {exc}")
+        return ""
+
+    def _fetch_site_content(self, domain: str) -> dict:
+        """Pobiera treść strony głównej, O nas, i dodatkowe źródła."""
+        result = {"homepage": "", "about": "", "krs_info": ""}
+
+        homepage = self._scrape_page(f"https://{domain}")
+        if homepage:
+            if len(homepage) > self.MAX_PAGE_CHARS:
+                homepage = homepage[:self.MAX_PAGE_CHARS] + "\n[...skrócono]"
+            result["homepage"] = homepage
+
+        about_paths = ["/o-nas", "/o-firmie", "/about", "/about-us", "/kim-jestesmy", "/o-marce"]
+        for path in about_paths:
+            about = self._scrape_page(f"https://{domain}{path}")
+            if about:
+                if len(about) > self.MAX_PAGE_CHARS:
+                    about = about[:self.MAX_PAGE_CHARS] + "\n[...skrócono]"
+                result["about"] = about
+                break
+
+        krs_info = self._fetch_krs_info(domain)
+        if krs_info:
+            result["krs_info"] = krs_info
+
+        return result
+
+    @staticmethod
+    def _fetch_krs_info(domain: str) -> str:
+        """Pobiera dane KRS z oficjalnego API MS + szuka przychodów przez Jina Search."""
+        clean = domain.replace("www.", "").replace(".pl", "").replace(".com", "").replace(".eu", "").lower()
+        parts = []
+
+        # 1) Szukaj numeru KRS przez Jina Search
+        krs_number = None
+        rejestr_io_url = ""
+        if config.JINA_API_KEY:
+            try:
+                headers = {"Accept": "application/json", "Authorization": f"Bearer {config.JINA_API_KEY}"}
+                resp = http_requests.get(
+                    f"https://s.jina.ai/{clean}+sp+z+o.o.+KRS+rejestr.io",
+                    headers=headers, timeout=20,
+                )
+                if resp.status_code == 200:
+                    for r in resp.json().get("data", []):
+                        url = r.get("url", "")
+                        if "rejestr.io/krs/" in url and "/krs?" not in url:
+                            import re
+                            m = re.search(r'/krs/(\d+)', url)
+                            if m:
+                                krs_number = m.group(1)
+                                rejestr_io_url = url.split("?")[0]
+                                break
+                        content = r.get("content", "") + r.get("description", "")
+                        if "przychod" in content.lower() or "zysk" in content.lower() or "revenue" in content.lower():
+                            snippet = content[:1500]
+                            parts.append(f"[Dane finansowe z sieci]\n{snippet}")
+            except Exception as exc:
+                print(f"⚠️  BrandBrief KRS search: {exc}")
+
+        # 2) Pobierz dane z oficjalnego API KRS (api-krs.ms.gov.pl)
+        if krs_number:
+            print(f"📡 BrandBrief: znaleziono KRS {krs_number}, pobieram z API MS...")
+            try:
+                resp = http_requests.get(
+                    f"https://api-krs.ms.gov.pl/api/krs/OdpisPelny/{krs_number}?rejestr=P&format=json",
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    dane = resp.json().get("odpis", {}).get("dane", {})
+                    dzial1 = dane.get("dzial1", {})
+                    dzial3 = dane.get("dzial3", {})
+
+                    dp = dzial1.get("danePodmiotu", {})
+                    nazwa_list = dp.get("nazwa", [])
+                    nazwa = nazwa_list[-1].get("nazwa", "") if nazwa_list else ""
+
+                    ident_list = dp.get("identyfikatory", [])
+                    nip = ""
+                    regon = ""
+                    if ident_list:
+                        last_id = ident_list[-1].get("identyfikatory", {})
+                        nip = last_id.get("nip", "")
+                        regon = last_id.get("regon", "")
+
+                    adr = dzial1.get("siedzibaIAdres", {}).get("adres", [])
+                    adres_str = ""
+                    if adr:
+                        a = adr[-1]
+                        adres_str = f"{a.get('ulica','')} {a.get('nrDomu','')}, {a.get('kodPocztowy','')} {a.get('miejscowosc','')}"
+
+                    kap = dzial1.get("kapital", {}).get("wysokoscKapitaluZakladowego", [])
+                    kapital = kap[-1].get("wartosc", "") + " " + kap[-1].get("waluta", "") if kap else ""
+
+                    pkd_glowne = dzial3.get("przedmiotPrzewazajacejDzialalnosci", [])
+                    pkd_str = ""
+                    if pkd_glowne:
+                        poz = pkd_glowne[-1].get("pozycja", [])
+                        if poz:
+                            p = poz[-1]
+                            pkd_str = f"{p.get('kodDzial','')}.{p.get('kodKlasa','')}.{p.get('kodPodklasa','')} — {p.get('opis','')}"
+
+                    wzmianki = dzial3.get("wzmiankiOZlozonychDokumentach", {})
+                    spraw = wzmianki.get("wzmiankaOZlozeniuRocznegoSprawozdaniaFinansowego", [])
+                    ostatnie_spraw = ""
+                    if spraw:
+                        last = spraw[-1].get("pozycja", [])
+                        if last:
+                            ostatnie_spraw = f"Ostatnie sprawozdanie: {last[-1].get('zaOkresOdDo','')}, złożone {last[-1].get('dataZlozenia','')}"
+
+                    rejestr_link = rejestr_io_url or f"https://rejestr.io/krs/{krs_number}"
+                    krs_text = (
+                        f"Nazwa pełna: {nazwa}\n"
+                        f"KRS: {krs_number}\n"
+                        f"NIP: {nip}\n"
+                        f"REGON: {regon}\n"
+                        f"Adres: {adres_str}\n"
+                        f"Kapitał zakładowy: {kapital}\n"
+                        f"PKD (główne): {pkd_str}\n"
+                        f"{ostatnie_spraw}\n"
+                        f"Link do pełnych danych finansowych: {rejestr_link}/finanse"
+                    )
+                    parts.insert(0, f"[Oficjalne API KRS — Ministerstwo Sprawiedliwości]\n{krs_text}")
+            except Exception as exc:
+                print(f"⚠️  BrandBrief KRS API: {exc}")
+
+        # 3) Szukaj przychodów w sieci jeśli jeszcze nie mamy
+        if not any("przychod" in p.lower() for p in parts) and config.JINA_API_KEY:
+            try:
+                headers = {"Accept": "application/json", "Authorization": f"Bearer {config.JINA_API_KEY}"}
+                resp = http_requests.get(
+                    f"https://s.jina.ai/{clean}+przychody+wyniki+finansowe+mln",
+                    headers=headers, timeout=20,
+                )
+                if resp.status_code == 200:
+                    for r in resp.json().get("data", [])[:3]:
+                        content = r.get("content", "")
+                        desc = r.get("description", "")
+                        title = r.get("title", "")
+                        combined = f"{title}\n{desc}\n{content}"
+                        if any(kw in combined.lower() for kw in ["przychod", "zysk", "revenue", "mln", "tys"]):
+                            snippet = combined[:1200]
+                            parts.append(f"[Wynik wyszukiwania: {title}]\n{snippet}")
+                            break
+            except Exception as exc:
+                print(f"⚠️  BrandBrief financial search: {exc}")
+
+        if not parts:
+            print(f"⚠️  BrandBrief: nie znaleziono danych KRS/finansowych dla {domain}")
+
+        return "\n\n".join(parts)
+
+    def post(self):
+        data = request.get_json() or {}
+        domain = (data.get('domain') or '').strip()
+
+        if not domain:
+            return {'error': 'Podaj domenę (nazwę wyceny)'}, 400
+
+        if not config.GEMINI_API_KEY:
+            return {'error': 'Brak GEMINI_API_KEY w .env'}, 500
+
+        content = self._fetch_site_content(domain)
+        total_chars = sum(len(v) for v in content.values())
+        print(f"📡 BrandBrief: pobrano {total_chars} znaków (strona: {len(content['homepage'])}, o-nas: {len(content['about'])}, krs: {len(content['krs_info'])})")
+
+        ctx_homepage = ""
+        if content["homepage"]:
+            ctx_homepage = f"\n--- STRONA GŁÓWNA {domain} (wyrenderowana) ---\n{content['homepage']}\n--- KONIEC STRONY GŁÓWNEJ ---\n"
+
+        ctx_about = ""
+        if content["about"]:
+            ctx_about = f"\n--- PODSTRONA O FIRMIE ---\n{content['about']}\n--- KONIEC PODSTRONY ---\n"
+
+        ctx_krs = ""
+        if content["krs_info"]:
+            ctx_krs = f"\n--- DANE Z REJESTRU KRS (rejestr.io) ---\n{content['krs_info']}\n--- KONIEC DANYCH KRS ---\n"
+
+        prompt = f"""Jesteś ekspertem SEO i strategiem marketingowym. Przygotowujesz brief o firmie: {domain}
+
+DANE ŹRÓDŁOWE:
+{ctx_homepage}
+{ctx_about}
+{ctx_krs}
+
+INSTRUKCJE DLA KAŻDEJ SEKCJI — każda sekcja ma INNE zasady:
+
+1. "company_info" — OPIERAJ SIĘ NA STRONIE. Opisz co firma sprzedaje, najważniejsze kategorie produktów, marki w ofercie, kraje/rynki. Wymień konkretne produkty/kategorie widoczne na stronie.
+
+2. "personas" — WNIOSKUJ NA PODSTAWIE OFERTY. Na podstawie tego co firma sprzedaje, kim są typowi klienci? Wymień 3-5 person zakupowych z krótkim opisem (kim jest, czego szuka, jaki ma budżet). Nikt nie podaje person na stronie — to Twoja analiza ekspercka na podstawie oferty.
+
+3. "usp" — WNIOSKUJ Z TREŚCI STRONY. Na podstawie tego co firma komunikuje (hasła, opisy, wartości) — jakie są ich przewagi konkurencyjne i USP? Czym się wyróżniają? Przeanalizuj język i treści na stronie.
+
+4. "channels" — ANALIZUJ STRONĘ + WNIOSKUJ. Sprawdź kody śledzenia (Google Ads, Facebook Pixel, GTM), linki do social media, informacje o sklepach stacjonarnych, marketplace'ach. Jeśli widzisz ślady kampanii remarketingowych, napisz o tym.
+
+5. "reviews" — UŻYJ SWOJEJ WIEDZY. Jaki jest ogólny sentyment o tej marce w internecie? Co ludzie chwalą, na co narzekają? Skorzystaj ze swojej wiedzy o opinich o marce {domain}. Bądź konkretny — podaj typowe opinie.
+
+6. "seasonality" — WNIOSKUJ Z KATEGORII. Na podstawie kategorii produktów ze strony, określ sezonowość: które kategorie mają szczyty sprzedaży i kiedy. Np. plecaki szkolne = sierpień/wrzesień, walizki = czerwiec/lipiec. Podaj konkretne miesiące dla każdej głównej kategorii.
+
+7. "site_structure" — OPISZ NA PODSTAWIE WYRENDEROWANEJ STRONY. Wymień główne kategorie z menu/nawigacji, czy jest blog, podkategorie, filtry. Opisz strukturę URL jeśli widoczna.
+
+8. "revenue" — UŻYJ DANYCH Z KRS. Podaj NIP, numer KRS, kapitał zakładowy i datę ostatniego sprawozdania. KONIECZNIE podaj link do strony z danymi finansowymi (rejestr.io) — skopiuj go dokładnie z danych KRS powyżej. Format: "Pełne dane finansowe: [link]". Jeśli w danych są kwoty przychodów, podaj je.
+
+WAŻNE:
+- Odpowiedz WYŁĄCZNIE jako poprawny JSON (bez markdown, bez ```json```).
+- Każda wartość to tekst po polsku.
+- Możesz używać \\n dla nowych linii wewnątrz wartości.
+- Bądź konkretny i podawaj przykłady z danych gdy to możliwe.
+- NIE mieszaj z innymi firmami — analizujesz DOKŁADNIE {domain}.
+
+Odpowiedz TYLKO poprawnym JSON-em z 8 kluczami."""
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+
+            if text.startswith('```'):
+                text = text.split('\n', 1)[1] if '\n' in text else text[3:]
+                if text.endswith('```'):
+                    text = text[:-3].strip()
+
+            import json as json_mod
+            try:
+                brief = json_mod.loads(text)
+            except json_mod.JSONDecodeError:
+                brief = {"company_info": text}
+
+            return {'brief': brief}
+        except Exception as e:
+            return {'error': f'Błąd Gemini API: {str(e)}'}, 500
+
+
+class EstimationSuggestAPI(Resource):
+    """AI sugestia Konwersji, AOV i Marży na podstawie opisu firmy."""
+
+    def post(self):
+        data = request.get_json() or {}
+        company_info = (data.get('company_info') or '').strip()
+
+        if not company_info:
+            return {'error': 'Brak opisu firmy (company_info)'}, 400
+        if not config.GEMINI_API_KEY:
+            return {'error': 'Brak GEMINI_API_KEY'}, 500
+
+        prompt = f"""Na podstawie opisu firmy, zaproponuj realistyczne wartości dla estymacji SEO e-commerce.
+
+OPIS FIRMY:
+{company_info}
+
+Zwróć WYŁĄCZNIE poprawny JSON (bez markdown) z 3 kluczami:
+1. "conversion_rate" — współczynnik konwersji w % (typowo 0.5-5% dla e-commerce, zależy od branży). Podaj liczbę.
+2. "aov" — średnia wartość zamówienia (AOV) w PLN. Oszacuj na podstawie typowych produktów tej firmy. Podaj liczbę.
+3. "margin" — marża w % (typowo 5-60%, zależy od branży). Podaj liczbę.
+
+Dla każdej wartości dodaj krótkie uzasadnienie w osobnym kluczu:
+4. "conversion_rate_reason" — dlaczego taka konwersja (1 zdanie)
+5. "aov_reason" — dlaczego takie AOV (1 zdanie)
+6. "margin_reason" — dlaczego taka marża (1 zdanie)
+
+Odpowiedz TYLKO JSON-em."""
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+
+            if text.startswith('```'):
+                text = text.split('\n', 1)[1] if '\n' in text else text[3:]
+                if text.endswith('```'):
+                    text = text[:-3].strip()
+
+            result = json.loads(text)
+            return {'suggestion': result}
+        except json.JSONDecodeError:
+            return {'error': 'Gemini nie zwróciło poprawnego JSON'}, 500
+        except Exception as e:
+            return {'error': f'Błąd Gemini API: {str(e)}'}, 500
+
+
+class QuoteBriefAPI(Resource):
+    """Zapis i odczyt briefu marki dla wyceny."""
+
+    def get(self, quote_id):
+        quote = Quote.query.get_or_404(quote_id)
+        if quote.brief_json:
+            return {'brief': json.loads(quote.brief_json)}
+        return {'brief': None}
+
+    def post(self, quote_id):
+        quote = Quote.query.get_or_404(quote_id)
+        data = request.get_json() or {}
+        brief = data.get('brief')
+        if brief:
+            quote.brief_json = json.dumps(brief, ensure_ascii=False)
+            db.session.commit()
+        return {'status': 'ok'}
+
+
 # Register API resources
 api.add_resource(PricelistAPI, '/api/pricelist', '/api/pricelist/<int:item_id>')
 api.add_resource(QuotesAPI, '/api/quotes', '/api/quotes/<int:quote_id>')
@@ -550,6 +1080,13 @@ api.add_resource(ExportAPI, '/api/quotes/<int:quote_id>/export')
 api.add_resource(CompetitorsAPI, '/api/quotes/<int:quote_id>/competitors')
 api.add_resource(SeoAnalysisAPI, '/api/quotes/<int:quote_id>/seo-analysis')
 api.add_resource(SeoAnalysisExportAPI, '/api/quotes/<int:quote_id>/seo-analysis/export')
+api.add_resource(ForecastSeasonalityAPI, '/api/quotes/<int:quote_id>/forecast/seasonality')
+api.add_resource(ForecastAPI, '/api/quotes/<int:quote_id>/forecast')
+api.add_resource(GA4UploadAPI, '/api/quotes/<int:quote_id>/forecast/ga4-upload')
+api.add_resource(KeywordsGenerateAPI, '/api/keywords/generate')
+api.add_resource(BrandBriefAPI, '/api/brand-brief/generate')
+api.add_resource(EstimationSuggestAPI, '/api/estimation/suggest')
+api.add_resource(QuoteBriefAPI, '/api/quotes/<int:quote_id>/brief')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5002)

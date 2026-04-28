@@ -43,7 +43,12 @@
                 <!-- Global Parameters Section -->
                 <div class="card glass-card glass-card-hover slide-up mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0 text-light">Parametry wyceny</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-light">Parametry wyceny</h5>
+                            <button class="btn btn-sm btn-outline-info" id="generateBriefBtn" onclick="generateBrandBrief()">
+                                <i class="bi bi-stars"></i> Brief AI
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -66,6 +71,14 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Brand Brief AI Section -->
+                <div id="brandBriefSection" class="card glass-card glass-card-hover mb-4 d-none">
+                    <div class="card-header">
+                        <h5 class="mb-0 text-light"><i class="bi bi-stars"></i> Brief marki (AI)</h5>
+                    </div>
+                    <div class="card-body" id="brandBriefContent"></div>
                 </div>
 
                 <!-- Add Task Section -->
@@ -227,9 +240,14 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-4">
-                            <label for="keywordsInput" class="form-label text-light">
-                                Słowa kluczowe (5-500 słów)
-                            </label>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label for="keywordsInput" class="form-label text-light mb-0">
+                                    Słowa kluczowe (5-500 słów)
+                                </label>
+                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#aiKeywordsModal">
+                                    <i class="bi bi-stars"></i> Podpowiedz słowa kluczowe (AI)
+                                </button>
+                            </div>
                             <textarea 
                                 class="form-control" 
                                 id="keywordsInput" 
@@ -330,6 +348,7 @@
                                             <th>Domena</th>
                                             <th>Domain Rating</th>
                                             <th>Domains</th>
+                                            <th>Backlinks</th>
                                             <th>TOP 3</th>
                                             <th>TOP 10</th>
                                             <th>Liczba URL w TOP 10</th>
@@ -349,6 +368,245 @@
                             </div>
                         </div>
                         
+                        <!-- Estymacja 12-miesięczna -->
+                        <div id="estimationSection" class="d-none mt-4">
+                            <hr class="border-secondary">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="text-light mb-0">
+                                    <i class="bi bi-graph-up-arrow"></i> Estymacja 12-miesięczna (ruch + ROI)
+                                </h6>
+                                <button class="btn btn-sm btn-outline-info" id="aiEstimationBtn" onclick="suggestEstimationParams()">
+                                    <i class="bi bi-stars"></i> Podpowiedz AI (Konwersja, AOV, Marża)
+                                </button>
+                            </div>
+
+                            <!-- GA4 Upload + Prophet toggle -->
+                            <div class="row g-3 mb-3 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label text-light">Dane GA4 (opcjonalnie)</label>
+                                    <div class="input-group">
+                                        <input type="file" class="form-control form-control-sm" id="ga4FileInput" accept=".csv">
+                                        <button class="btn btn-outline-info btn-sm" onclick="uploadGA4CSV()">
+                                            <i class="bi bi-cloud-upload"></i> Upload
+                                        </button>
+                                    </div>
+                                    <div id="ga4Status" class="form-text text-muted small"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="useProphetToggle" disabled>
+                                        <label class="form-check-label text-light" for="useProphetToggle">
+                                            Użyj GA4 + Prophet
+                                        </label>
+                                    </div>
+                                    <div class="form-text text-muted small">3 scenariusze z przedziałami ufności</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-outline-danger btn-sm d-none" id="removeGA4Btn" onclick="removeGA4Data()">
+                                        <i class="bi bi-trash"></i> Usuń GA4
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label for="forecastClientDomain" class="form-label text-light">Domena klienta</label>
+                                    <select class="form-select" id="forecastClientDomain"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="forecastLeaderDomain" class="form-label text-light">Lider rynku (sezonowość)</label>
+                                    <select class="form-select" id="forecastLeaderDomain"></select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastConversionRate" class="form-label text-light">Konwersja (%)</label>
+                                    <div id="aiSuggestConversion" class="d-none mb-1">
+                                        <small class="text-warning cursor-pointer" style="cursor:pointer" onclick="applyAiSuggestion('forecastConversionRate', this)">
+                                        </small>
+                                    </div>
+                                    <input type="number" class="form-control" id="forecastConversionRate" step="0.1" min="0" max="100" value="1.8">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastAov" class="form-label text-light">AOV (zł)</label>
+                                    <div id="aiSuggestAov" class="d-none mb-1">
+                                        <small class="text-warning" style="cursor:pointer" onclick="applyAiSuggestion('forecastAov', this)">
+                                        </small>
+                                    </div>
+                                    <input type="number" class="form-control" id="forecastAov" step="1" min="0" value="1000">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastMargin" class="form-label text-light">Marża (%)</label>
+                                    <div id="aiSuggestMargin" class="d-none mb-1">
+                                        <small class="text-warning" style="cursor:pointer" onclick="applyAiSuggestion('forecastMargin', this)">
+                                        </small>
+                                    </div>
+                                    <input type="number" class="form-control" id="forecastMargin" step="0.1" min="0" max="100" value="15">
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-2">
+                                    <label for="forecastSeoBudget" class="form-label text-light">Stały budżet SEO (zł/mc)</label>
+                                    <input type="number" class="form-control" id="forecastSeoBudget" step="100" min="0" value="0">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastContentVolume" class="form-label text-light">Nowe artykuły / mc</label>
+                                    <input type="number" class="form-control" id="forecastContentVolume" step="1" min="0" value="4">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastLbRate" class="form-label text-light">LB rate (% / mc)</label>
+                                    <input type="number" class="form-control" id="forecastLbRate" step="0.01" min="0" max="10" value="" placeholder="auto">
+                                    <div class="form-text text-muted small">Puste = auto z Domain Gap</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastLbCost" class="form-label text-light">LB koszt (zł / mc)</label>
+                                    <input type="number" class="form-control" id="forecastLbCost" step="100" min="0" value="" placeholder="auto">
+                                    <div class="form-text text-muted small">Puste = auto z Domain Gap</div>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end gap-2">
+                                    <button class="btn btn-outline-info" id="loadSeasonalityBtn" onclick="loadSeasonalityFromAhrefs()">
+                                        <i class="bi bi-cloud-download"></i> Wczytaj sezonowość z Ahrefs
+                                    </button>
+                                    <button class="btn btn-primary" onclick="runForecast()">
+                                        <i class="bi bi-calculator"></i> Przelicz estymację
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" onclick="saveForecast()">
+                                        <i class="bi bi-save"></i> Zapisz
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-2">
+                                    <label for="forecastTopVariance" class="form-label text-light">Wariancja Top (%)</label>
+                                    <input type="number" class="form-control" id="forecastTopVariance" step="1" min="0" max="100" value="10">
+                                    <div class="form-text text-muted small">± dla wykresów Top10/Top3</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastTrafficVariance" class="form-label text-light">Wariancja Ruch (%)</label>
+                                    <input type="number" class="form-control" id="forecastTrafficVariance" step="1" min="0" max="100" value="15">
+                                    <div class="form-text text-muted small">± dla wykresów ruchu</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastRevenueVariance" class="form-label text-light">Wariancja Przychód (%)</label>
+                                    <input type="number" class="form-control" id="forecastRevenueVariance" step="1" min="0" max="100" value="15">
+                                    <div class="form-text text-muted small">± dla wykresu przychodów</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastKwPerUrlPct" class="form-label text-light">Śr. słów/URL (%)</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="forecastKwPerUrlPct" step="1" min="1" max="100" value="100">
+                                        <span class="input-group-text" id="forecastKwPerUrlVal" style="font-size:0.75rem;min-width:50px">—</span>
+                                    </div>
+                                    <div class="form-text text-muted small">% z avg_kw_per_url</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="forecastTrafficPerKwPct" class="form-label text-light">Śr. ruch/słowo (%)</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="forecastTrafficPerKwPct" step="1" min="1" max="100" value="100">
+                                        <span class="input-group-text" id="forecastTrafficPerKwVal" style="font-size:0.75rem;min-width:50px">—</span>
+                                    </div>
+                                    <div class="form-text text-muted small">% z avg_traffic_per_kw</div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <label class="form-label text-light mb-1">Mnożniki sezonowości (sty–gru)</label>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season0" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season1" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season2" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season3" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season4" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season5" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season6" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season7" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season8" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season9" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season10" step="0.01" min="0" value="1.00"></div>
+                                <div class="col-1"><input type="number" class="form-control form-control-sm season-input" id="season11" step="0.01" min="0" value="1.00"></div>
+                                <div class="form-text text-light" id="seasonLabels">Sty | Lut | Mar | Kwi | Maj | Cze | Lip | Sie | Wrz | Paź | Lis | Gru</div>
+                            </div>
+
+                            <div id="forecastSummary" class="alert alert-info d-none mb-3"></div>
+
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm" id="forecastTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Miesiąc</th>
+                                            <th>Ruch bazowy+LB</th>
+                                            <th>Ruch z contentu</th>
+                                            <th>Ruch końcowy</th>
+                                            <th>Koszt SEO</th>
+                                            <th>Przychód</th>
+                                            <th>Marża brutto</th>
+                                            <th>Zysk netto</th>
+                                            <th>Zysk kumulat.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                    <tfoot class="table-secondary fw-bold">
+                                        <tr id="forecastTotalsRow"></tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <div class="mb-4 mt-4">
+                                <canvas id="trafficForecastChart" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="roiChart" height="280"></canvas>
+                            </div>
+
+                            <hr class="border-secondary mt-4">
+                            <h6 class="text-light mb-3">
+                                <i class="bi bi-bar-chart-line"></i> Wykresy scenariuszowe (12 miesięcy)
+                            </h6>
+                            <div class="mb-4">
+                                <canvas id="chartTop10Forecast" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartTop3Forecast" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartTrafficSenuto" height="280"></canvas>
+                            </div>
+                            <div class="mb-4" id="chartTrafficGA4Wrapper">
+                                <canvas id="chartTrafficGA4" height="280"></canvas>
+                                <div id="chartTrafficGA4Placeholder" class="d-none text-center py-5" style="background: rgba(255,255,255,0.03); border-radius: 8px; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                                    <div>
+                                        <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #6c757d;"></i>
+                                        <p class="text-muted mt-2 mb-0">Wgraj CSV z GA4 aby zobaczyć prognozę ruchu Prophet</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartRevenueForecast" height="280"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Porównanie domen -->
+                        <div id="domainComparisonSection" class="d-none mt-4">
+                            <hr class="border-secondary">
+                            <h6 class="text-light mb-3">
+                                <i class="bi bi-bar-chart"></i> Porównanie domen — metryki SEO
+                            </h6>
+                            <div class="mb-4">
+                                <canvas id="chartDR" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartDomains" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartUrlsTop10" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartCompTop10" height="280"></canvas>
+                            </div>
+                            <div class="mb-4">
+                                <canvas id="chartCompTop3" height="280"></canvas>
+                            </div>
+                        </div>
+
                         <!-- Error Messages -->
                         <div id="seoError" class="alert alert-danger d-none" role="alert">
                             <!-- Error messages will be shown here -->
@@ -452,8 +710,41 @@
         </div>
     </div>
 
+    <!-- Modal: AI Keywords Generator -->
+    <div class="modal fade" id="aiKeywordsModal" tabindex="-1" aria-labelledby="aiKeywordsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="aiKeywordsModalLabel"><i class="bi bi-stars"></i> Generuj słowa kluczowe (AI)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="aiClientDescription" class="form-label">Opisz biznes klienta (2-3 zdania)</label>
+                        <textarea class="form-control" id="aiClientDescription" rows="4"
+                            placeholder="np. Klient prowadzi sklep internetowy z walizkami i galanterią podróżną. Sprzedaje walizki, torby, plecaki i akcesoria podróżne marek premium."></textarea>
+                    </div>
+                    <div id="aiKeywordsStatus" class="d-none">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                            <span>Generuję słowa kluczowe...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-info" id="generateAIKeywordsBtn" onclick="generateAIKeywords()">
+                        <i class="bi bi-stars"></i> Generuj słowa kluczowe
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="{{ url_for('static', filename='js/quote_editor.js') }}?v=2"></script>
-    <script src="{{ url_for('static', filename='js/seo_analysis.js') }}?v=2"></script>
+    <script src="{{ url_for('static', filename='js/seo_analysis.js') }}?v=3"></script>
+    <script src="{{ url_for('static', filename='js/forecast.js') }}?v=4"></script>
 </body>
 </html>

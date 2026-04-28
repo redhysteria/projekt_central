@@ -368,12 +368,14 @@ async function loadQuote(quoteId) {
         // Update form fields
         document.getElementById('quoteTitle').textContent = currentQuote.name;
         document.getElementById('quoteName').value = currentQuote.name;
+        syncQuoteNameToDomains(currentQuote.name);
         
         renderItemsTable();
         renderMonthlyTable();
         
         // Load competitors data
         await loadCompetitors();
+        loadBrandBrief();
         
     } catch (error) {
         console.error('Error loading quote:', error);
@@ -924,7 +926,7 @@ async function analyzeCompetitors() {
         console.log(`🚀 Wysyłam żądanie do /api/quotes/${currentQuote.id}/competitors`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 sekund timeout
+        const timeoutId = setTimeout(() => controller.abort(), 1000000); // 1000 sekund timeout
         
         const response = await fetch(`/api/quotes/${currentQuote.id}/competitors`, {
             method: 'POST',
@@ -957,7 +959,7 @@ async function analyzeCompetitors() {
         console.error('💥 Błąd podczas analizy konkurentów:', error);
         
         if (error.name === 'AbortError') {
-            showCompetitorsError('Analiza przekroczyła limit czasu (60 sekund). Spróbuj z mniejszą liczbą słów kluczowych.');
+            showCompetitorsError('Analiza przekroczyła limit czasu (1000 sekund). Spróbuj z mniejszą liczbą słów kluczowych.');
         } else {
             showCompetitorsError('Błąd połączenia z serwerem: ' + error.message);
         }
@@ -991,13 +993,15 @@ function displayCompetitorsResults(competitors) {
     // Clear previous results
     tableBody.innerHTML = '';
     
+    const filtered = competitors.filter(c => c.occurrences > 5);
+    
     // Add competitors to table
-    competitors.forEach((competitor, index) => {
+    filtered.forEach((competitor, index) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${index + 1}</td>
             <td>
-                <a href="https://${competitor.domain}" target="_blank" class="text-decoration-none">
+                <a href="#" class="text-decoration-none add-domain-link" data-domain="${competitor.domain}">
                     ${competitor.domain}
                     <i class="bi bi-box-arrow-up-right ms-1"></i>
                 </a>
@@ -1006,11 +1010,205 @@ function displayCompetitorsResults(competitors) {
                 <span class="badge bg-primary">${competitor.occurrences}</span>
             </td>
         `;
+        row.querySelector('.add-domain-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            addDomainToAnalysis(competitor.domain);
+        });
         tableBody.appendChild(row);
     });
     
     // Show results
     resultsDiv.classList.remove('d-none');
+}
+
+function syncQuoteNameToDomains(name) {
+    if (!name) return;
+    const textarea = document.getElementById('domainsInput');
+    if (!textarea) return;
+    const current = textarea.value.trim();
+    const lines = current ? current.split('\n').map(l => l.trim()).filter(Boolean) : [];
+    if (!lines.some(l => l.toLowerCase() === name.toLowerCase())) {
+        lines.unshift(name);
+        textarea.value = lines.join('\n');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const quoteNameInput = document.getElementById('quoteName');
+    if (quoteNameInput) {
+        quoteNameInput.addEventListener('change', () => {
+            syncQuoteNameToDomains(quoteNameInput.value.trim());
+        });
+    }
+});
+
+function addDomainToAnalysis(domain) {
+    const textarea = document.getElementById('domainsInput');
+    if (!textarea) return;
+    const current = textarea.value.trim();
+    const lines = current ? current.split('\n').map(l => l.trim()).filter(Boolean) : [];
+    if (lines.some(l => l.toLowerCase() === domain.toLowerCase())) {
+        if (window.showAlert) window.showAlert(`${domain} jest już na liście`, 'info');
+        return;
+    }
+    lines.push(domain);
+    textarea.value = lines.join('\n');
+    if (window.showAlert) window.showAlert(`Dodano ${domain} do analizy`, 'success');
+    textarea.scrollTop = textarea.scrollHeight;
+}
+
+async function generateBrandBrief() {
+    const domain = (document.getElementById('quoteName')?.value || '').trim();
+    if (!domain) {
+        alert('Podaj nazwę wyceny (domenę klienta)');
+        return;
+    }
+
+    const btn = document.getElementById('generateBriefBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generuję brief...';
+
+    try {
+        const resp = await fetch('/api/brand-brief/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Błąd API');
+
+        const brief = data.brief || {};
+        renderBrandBrief(brief);
+        saveBrandBrief(brief);
+
+        if (window.showAlert) window.showAlert('Brief marki wygenerowany', 'success');
+    } catch (e) {
+        console.error('Brand brief error:', e);
+        if (window.showAlert) window.showAlert(e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars"></i> Brief AI';
+    }
+}
+
+function _getQuoteId() {
+    if (typeof currentQuoteId !== 'undefined' && currentQuoteId) return currentQuoteId;
+    return new URLSearchParams(window.location.search).get('id');
+}
+
+async function saveBrandBrief(brief) {
+    const qid = _getQuoteId();
+    if (!qid || !brief) return;
+    try {
+        await fetch(`/api/quotes/${qid}/brief`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ brief }),
+        });
+    } catch (e) {
+        console.error('Błąd zapisu briefu:', e);
+    }
+}
+
+async function loadBrandBrief() {
+    const qid = _getQuoteId();
+    if (!qid) return;
+    try {
+        const resp = await fetch(`/api/quotes/${qid}/brief`);
+        const data = await resp.json();
+        if (data.brief) {
+            renderBrandBrief(data.brief);
+        }
+    } catch (e) {
+        console.error('Błąd ładowania briefu:', e);
+    }
+}
+
+function renderBrandBrief(brief) {
+    const section = document.getElementById('brandBriefSection');
+    const container = document.getElementById('brandBriefContent');
+    if (!section || !container) return;
+
+    const sections = [
+        { key: 'company_info', title: 'Podstawowe informacje o firmie', icon: 'bi-building' },
+        { key: 'personas', title: 'Persony zakupowe / grupy odbiorców', icon: 'bi-people' },
+        { key: 'usp', title: 'Przewagi konkurencyjne / USP', icon: 'bi-trophy' },
+        { key: 'channels', title: 'Kanały sprzedażowe i model biznesowy', icon: 'bi-diagram-3' },
+        { key: 'reviews', title: 'Opinie o marce', icon: 'bi-chat-quote' },
+        { key: 'seasonality', title: 'Sezonowość produktów', icon: 'bi-calendar-event' },
+        { key: 'site_structure', title: 'Struktura serwisu', icon: 'bi-layout-text-sidebar' },
+        { key: 'revenue', title: 'Przychody spółki', icon: 'bi-cash-stack' },
+    ];
+
+    container.innerHTML = sections.map(s => {
+        const raw = brief[s.key] || 'Brak danych';
+        let formatted;
+        if (Array.isArray(raw)) {
+            formatted = raw.map(item => {
+                if (typeof item === 'object' && item.name) {
+                    return `<strong>${item.name}</strong>: ${item.description || ''}`;
+                }
+                return String(item);
+            }).join('<br><br>');
+        } else {
+            formatted = String(raw).replace(/\n/g, '<br>');
+        }
+        formatted = formatted.replace(
+            /(https?:\/\/[^\s<]+)/g,
+            '<a href="$1" target="_blank" class="text-info">$1</a>'
+        );
+        return `
+            <div class="mb-4">
+                <h6 class="text-info"><i class="bi ${s.icon} me-2"></i>${s.title}</h6>
+                <p class="text-light mb-0" style="white-space: pre-wrap;">${formatted}</p>
+            </div>
+        `;
+    }).join('<hr class="border-secondary">');
+
+    section.classList.remove('d-none');
+}
+
+async function generateAIKeywords() {
+    const description = (document.getElementById('aiClientDescription')?.value || '').trim();
+    if (!description) {
+        alert('Podaj opis biznesu klienta');
+        return;
+    }
+
+    const domain = (document.getElementById('quoteName')?.value || '').trim();
+    const btn = document.getElementById('generateAIKeywordsBtn');
+    const status = document.getElementById('aiKeywordsStatus');
+
+    btn.disabled = true;
+    status.classList.remove('d-none');
+
+    try {
+        const resp = await fetch('/api/keywords/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, description }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Błąd API');
+
+        const keywords = data.keywords || [];
+        if (!keywords.length) throw new Error('Gemini nie zwróciło słów kluczowych');
+
+        const textarea = document.getElementById('keywordsInput');
+        const current = (textarea.value || '').trim();
+        textarea.value = current ? current + '\n' + keywords.join('\n') : keywords.join('\n');
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('aiKeywordsModal'));
+        if (modal) modal.hide();
+
+        if (window.showAlert) window.showAlert(`Dodano ${keywords.length} słów kluczowych z AI`, 'success');
+    } catch (e) {
+        console.error('AI Keywords error:', e);
+        if (window.showAlert) window.showAlert(e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        status.classList.add('d-none');
+    }
 }
 
 function setCompetitorsLoadingState(isLoading) {

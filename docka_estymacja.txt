@@ -1,0 +1,74 @@
+CONTEXT:
+You are expanding an existing SEO data application with a 12-month financial and traffic forecasting module. The app already breaks data down month-by-month and has core metrics (Base Traffic, Avg KW per URL, Avg Traffic per KW, Referring Domains) and monthly seasonality multipliers derived from the market leader.
+
+GOAL:
+Calculate a highly accurate, month-by-month 12-month traffic and ROI forecast for a client domain. The logic must accurately compound Link Building (LB) growth, apply a specific ramp-up curve to Content Marketing, and apply seasonality strictly at the end of each month's calculation to prevent compounding seasonal anomalies.
+
+NEW UI INPUTS REQUIRED:
+
+Conversion_Rate (percentage, e.g., 0.018 for 1.8%)
+
+AOV (Average Order Value, float, e.g., 1000)
+
+Margin (percentage, e.g., 0.15 for 15%)
+
+Fixed_SEO_Budget (float, flat monthly agency fee/other costs)
+
+Monthly_Content_Volume (integer, number of new articles published per month)
+
+CALCULATION LOGIC (Strict sequence for Month 1 to 12):
+
+1. Link Building (LB) Parameters:
+
+Calculate Domain_Gap = Avg_Competitor_RD - Client_RD.
+
+If Domain_Gap <= 0: Monthly_LB_Growth_Rate = 0.01 (1%).
+
+If Domain_Gap > 0:
+Raw_LB_Rate = (Domain_Gap / 12) / 100.
+Constraint: Monthly_LB_Growth_Rate = Math.min(Raw_LB_Rate, 0.05). // Caps monthly LB growth at 5% max to prevent unrealistic exponential scaling.
+
+Monthly_LB_Cost = (Domain_Gap > 0 ? (Domain_Gap / 12) : 0) * 400.
+
+2. Content Marketing Parameters:
+
+Max_Traffic_Per_Content_Batch = Monthly_Content_Volume * Avg_KW_per_URL * Avg_Traffic_per_KW.
+
+Content_Ramp_Up_Curve = [0, 0.10, 0.50, 0.80, 1.00]. // Month 1: 0%, Month 2: 10%, Month 3: 50%, Month 4: 80%, Month 5+: 100%.
+
+3. Month-by-Month Iteration Logic (i = 1 to 12):
+Maintain a Current_Base_Traffic variable. Initialize it at Month 0 with the client's current average monthly traffic (deseasonalized).
+
+Step A (LB Growth): >   Current_Base_Traffic = Current_Base_Traffic * (1 + Monthly_LB_Growth_Rate).
+
+Step B (Content Growth): >   Calculate total content traffic for Month i by summing the contributions of all past batches.
+Total_Content_Traffic_Month_i = 0.
+For each batch created in month j (where j is from 1 to i):
+Age_in_months = i - j.
+Multiplier_Index = Math.min(Age_in_months, 4). // Caps at index 4 (100%)
+Batch_Traffic = Max_Traffic_Per_Content_Batch * Content_Ramp_Up_Curve[Multiplier_Index].
+Add Batch_Traffic to Total_Content_Traffic_Month_i.
+
+Step C (Apply Seasonality):
+Pure_Traffic_Month_i = Current_Base_Traffic + Total_Content_Traffic_Month_i.
+Final_Traffic_Month_i = Pure_Traffic_Month_i * Seasonality_Multiplier_Month_i. (Ensure seasonality is applied to the combined content and base traffic).
+
+Step D (Financials for Month i):
+Orders_i = Final_Traffic_Month_i * Conversion_Rate
+Revenue_i = Orders_i * AOV
+Gross_Margin_i = Revenue_i * Margin
+Total_Cost_i = Fixed_SEO_Budget + Monthly_LB_Cost
+Net_Profit_i = Gross_Margin_i - Total_Cost_i
+Cumulative_Net_Profit = Cumulative_Net_Profit + Net_Profit_i
+
+OUTPUTS & VISUALIZATION REQUIREMENTS:
+
+Render a data table for months 1-12 containing: Final Traffic, Total SEO Cost, Revenue, Gross Margin, Net Profit, and Cumulative Net Profit.
+
+Create a specific visual flag (e.g., green text/background) on the "Break-Even Point" month (the first month where Cumulative_Net_Profit > 0).
+
+Generate two charts using the existing chart library (e.g., Recharts):
+
+Traffic Forecast: Stacked Bar/Area chart showing "Base + LB Traffic" vs "Content Traffic", with a line overlay showing the "Final Seasonal Traffic".
+
+ROI Chart: Line chart comparing Cumulative Costs vs Cumulative Gross Margin to visualize the break-even intersection.

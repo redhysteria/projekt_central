@@ -1,0 +1,38 @@
+Dobra. Chcę tereaz dołożyć kolejną warstwę do aplikacji wyceny. 
+1.
+        Parametry SEO do analizy, dla każdej domeny:
+        - liczba adresów URL, które mają widoczność na przynajmniej jedno słowo kluczowe w top10
+        - liczba adresów URL, które mają widoczność na przynajmniej jedno słowo kluczowe w top50
+        - liczba słów kluczowych w top 50
+        - liczba słów kluczowych w top 10
+        - liczba słów kluczowych w top 3
+        - szacowany ruch
+        - liczba domen odsyłających
+        - Domain Rating
+
+        Na podstawie tych danych chcemy obliczyć:
+        - średnią liczbę słów kluczowych w top10 przypadających na jeden adres URL ze słowem w top10 (liczba słów kluczowych w top 10 podzielona przez liczba adresów URL z widocznością w top 10).
+        - średnią liczbę ruchu generowaną przez jedno słowo kluczowe (szacowany ruch serwisu podzielony przez liczbę słów kluczowych w top10).
+        - średni domain Rating
+        - średnią liczbę domen odsyłających
+        - średni szacowany ruch
+        - średnią liczbę kw w top3
+        - średnią liczbę kw w top10
+        - średnią liczbę kw w top50
+
+        Wszystkie dane pobrałbym z Ahrefs MCP, jeżeli się da. 
+
+
+
+2. 
+    Lokalizacja pola z przyjmowaniem domen.    
+        Jezeli chodzi o design, to powinniśmy to dodać na widoku pojedynczej wyceny, pod wynikami analizy konkurencji.
+    Input
+        Jako input podam listę domen, dla których trzeba pobrać i przeliczyć dane. Pole tekstowe w którym domeny podaje się jedna pod drugą (oddzielone enterami)
+    Output
+        Po pobraniu i przeliczeniu dane mamy móc pobrać jako plik w rozszerzeniu .CSV
+
+        Chcę otrzymać mniej więcej taką tabelę.
+        /var/folders/vd/bct0y59d5n1c5fh4l78rmjqc0000gn/T/TemporaryItems/NSIRD_screencaptureui_lOT7Te/Screenshot 2025-10-17 at 13.55.33.png
+
+    

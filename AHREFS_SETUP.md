@@ -1,232 +1,77 @@
-# Konfiguracja Ahrefs MCP API
+# Ahrefs API v3 — konfiguracja
 
-Ten dokument opisuje jak skonfigurować i używać integracji Ahrefs MCP API w aplikacji wyceny SEO.
+Aplikacja korzysta z **Ahrefs API v3** (REST) do pobrania:
 
-## Spis treści
+| Pole w wycenie SEO   | Endpoint Ahrefs                            | Pole w odpowiedzi                  |
+|----------------------|--------------------------------------------|------------------------------------|
+| **Domain Rating**    | `GET /v3/site-explorer/domain-rating`      | `domain_rating.domain_rating`      |
+| **Referring Domains**| `GET /v3/site-explorer/backlinks-stats`    | `metrics.live_refdomains`          |
+| **Backlinks**        | `GET /v3/site-explorer/backlinks-stats`    | `metrics.live`                     |
 
-1. [Co to jest Ahrefs MCP](#co-to-jest-ahrefs-mcp)
-2. [Wymagania](#wymagania)
-3. [Konfiguracja](#konfiguracja)
-4. [Użytkowanie](#użytkowanie)
-5. [Limity API](#limity-api)
-6. [Troubleshooting](#troubleshooting)
+> Pola TOP/URL/szacowany ruch pochodzą z Senuto — patrz `SENUTO_SETUP.md`.
 
-## Co to jest Ahrefs MCP
+## 1. Plan i klucz API
 
-Ahrefs MCP (Model Context Protocol) to interfejs do komunikacji z Ahrefs API v4, który pozwala na pobieranie prawdziwych metryk SEO dla domen, takich jak:
+Ahrefs API jest płatne. Używamy planu **Standard** (~$1000/mc, 150 000 rows/cykl). Klucz wygenerujesz po zalogowaniu w panelu Ahrefs:
 
-- **Domain Rating** - ocena siły domeny (0-100)
-- **Referring Domains** - liczba domen odsyłających
-- **Organic Keywords** - słowa kluczowe w top 3, top 10, top 50
-- **Organic Traffic** - szacowany ruch organiczny
-- **URLs Ranking** - liczba URL-i rankujących się w top pozycjach
+<https://ahrefs.com/api>
 
-## Wymagania
+Zakładka "API Keys" → "Create new key" → kopiujesz wartość (40 znaków, alfanumeryczne).
 
-- Python 3.7+
-- Klucz API Ahrefs (można uzyskać na https://ahrefs.com/api)
-- Biblioteka `requests` (automatycznie instalowana przez `requirements.txt`)
+## 2. Plik `.env`
 
-## Konfiguracja
-
-### Krok 1: Uzyskanie klucza API
-
-1. Zaloguj się do konta Ahrefs
-2. Przejdź do sekcji API: https://ahrefs.com/api
-3. Wygeneruj nowy klucz API dla MCP
-4. Skopiuj klucz (format: `D7uD.xxxx...`)
-
-### Krok 2: Konfiguracja pliku .env
-
-1. Skopiuj plik `.env.example` i nazwij go `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edytuj plik `.env` i wklej swój klucz API:
-   ```env
-   AHREFS_MCP_API_KEY=D7uD.your_actual_api_key_here
-   AHREFS_MCP_ENABLED=True
-   AHREFS_FALLBACK_TO_MOCK=True
-   AHREFS_RPM=60
-   ```
-
-### Krok 3: Instalacja zależności
-
-```bash
-pip install -r requirements.txt
-```
-
-### Krok 4: Uruchomienie aplikacji
-
-```bash
-python3 app.py
-```
-
-Aplikacja automatycznie wykryje klucz API i użyje Ahrefs API zamiast mockowanych danych.
-
-## Konfiguracja zaawansowana
-
-### Parametry w .env
-
-| Parametr | Opis | Domyślna wartość |
-|----------|------|------------------|
-| `AHREFS_MCP_API_KEY` | Klucz API Ahrefs | (wymagany) |
-| `AHREFS_MCP_ENABLED` | Włącz/wyłącz integrację Ahrefs API | `True` |
-| `AHREFS_FALLBACK_TO_MOCK` | Użyj mocków przy błędzie API | `True` |
-| `AHREFS_RPM` | Limit żądań na minutę | `60` |
-
-### Przykłady konfiguracji
-
-**Tylko Ahrefs API (bez fallback):**
 ```env
-AHREFS_MCP_ENABLED=True
+AHREFS_API_KEY=twoj_40_znakowy_klucz
+AHREFS_ENABLED=True
 AHREFS_FALLBACK_TO_MOCK=False
+AHREFS_RPM=60
+AHREFS_TIMEOUT=30
 ```
 
-**Tylko mockowane dane:**
-```env
-AHREFS_MCP_ENABLED=False
+`AHREFS_FALLBACK_TO_MOCK=True` włącza fallback na losowe dane testowe (`ahrefs_mcp_client.py`) gdy API zwróci błąd. Domyślnie wyłączone — błąd się propaguje.
+
+## 3. Limity i koszt
+
+Każde nasze zapytanie konsumuje **1 row z miesięcznego limitu**:
+- Domain Rating: 1 row na domenę
+- Backlinks Stats: 1 row na domenę
+- Razem: **2 rows na domenę** w analizie SEO.
+
+Przy planie Standard (150k rows/cykl) starczy na ~75 000 domen miesięcznie.
+
+Bieżące zużycie sprawdzisz wywołując:
+
+```bash
+curl -H "Authorization: Bearer $AHREFS_API_KEY" \
+  https://api.ahrefs.com/v3/subscription-info/limits-and-usage
 ```
 
-**Ahrefs API z fallback (rekomendowane):**
-```env
-AHREFS_MCP_ENABLED=True
-AHREFS_FALLBACK_TO_MOCK=True
+Odpowiedź zawiera m.in.:
+- `units_limit_workspace` — miesięczny limit
+- `units_usage_workspace` — bieżące zużycie
+- `usage_reset_date` — data resetu
+- `api_key_expiration_date` — data wygaśnięcia klucza
+
+## 4. Test
+
+```bash
+python3 test_ahrefs.py senuto.com wikipedia.org
 ```
 
-## Użytkowanie
+Powinno wypisać DR, Referring Domains i Backlinks dla każdej domeny.
 
-### W aplikacji webowej
+## 5. Najczęstsze błędy
 
-1. Otwórz edytor wyceny
-2. Przewiń do sekcji "Analiza SEO konkurencji"
-3. Wprowadź domeny (jedna na linię)
-4. Kliknij "Analizuj domeny SEO"
-5. Wyniki pokażą badge "API" lub "Mock" dla każdej domeny
-6. Info box nad tabelą pokaże źródło danych
+| Komunikat                                        | Przyczyna / rozwiązanie                                  |
+|--------------------------------------------------|----------------------------------------------------------|
+| `401 Unauthorized`                               | Klucz nieważny lub wygasł — wygeneruj nowy w panelu      |
+| `403 Forbidden`                                  | Brak uprawnień do tego endpointu w obecnym planie        |
+| `429 Too Many Requests`                          | Przekroczony rate limit — zmniejsz `AHREFS_RPM`          |
+| `Brak AHREFS_API_KEY w .env`                     | Uzupełnij klucz w `.env`                                 |
 
-### Interpretacja wyników
+## 6. Dlaczego dwa pliki klienta?
 
-- 🟢 **Badge "API"** - dane pochodzą z Ahrefs API
-- 🔴 **Badge "Mock"** - dane są symulowane (fallback lub brak API)
-- **Info box zielony** - wszystkie dane z API
-- **Info box żółty** - wszystkie dane mockowane
-- **Info box niebieski** - dane mieszane (część API, część mock)
+- `ahrefs_api_client.py` — **realny** klient Ahrefs v3 (HTTP + Bearer)
+- `ahrefs_mcp_client.py` — **mock** generujący dane na bazie hashu domeny (legacy, używany tylko gdy `AHREFS_FALLBACK_TO_MOCK=True`)
 
-### Eksport wyników
-
-Kliknij "Eksportuj do CSV" aby pobrać wyniki z informacją o źródle danych.
-
-## Limity API
-
-### Plan Lite (domyślny)
-
-- **60 requestów na minutę**
-- **Timeout:** 30 sekund na żądanie
-- **Retry:** 3 próby z exponential backoff (1s, 2s, 4s)
-
-### Automatyczne zarządzanie limitami
-
-Aplikacja automatycznie:
-- Stosuje rate limiting (1 request/second)
-- Retry przy błędach 429 (Too Many Requests)
-- Fallback do mocków przy przekroczeniu limitów
-
-### Jak uniknąć błędów limitów
-
-1. **Analizuj w małych partiach** - max 10-20 domen na raz
-2. **Użyj fallback** - ustaw `AHREFS_FALLBACK_TO_MOCK=True`
-3. **Zwiększ plan** - rozważ upgrade planu Ahrefs
-
-## Troubleshooting
-
-### Problem: Brak klucza API
-
-**Objaw:**
-```
-🔴 Ahrefs Service: Brak klucza API - używam mockowanych danych
-```
-
-**Rozwiązanie:**
-1. Sprawdź czy plik `.env` istnieje w katalogu głównym projektu
-2. Sprawdź czy `AHREFS_MCP_API_KEY` jest ustawiony w `.env`
-3. Upewnij się że klucz jest poprawny (format `D7uD.xxxx...`)
-4. Zrestartuj aplikację po zmianach w `.env`
-
-### Problem: Błąd 401 Unauthorized
-
-**Objaw:**
-```
-❌ Ahrefs API: Unauthorized (401) - sprawdź klucz API
-```
-
-**Rozwiązanie:**
-1. Zweryfikuj klucz API na https://ahrefs.com/api
-2. Upewnij się że klucz nie wygasł
-3. Sprawdź czy masz aktywną subskrypcję Ahrefs
-
-### Problem: Błąd 429 Too Many Requests
-
-**Objaw:**
-```
-⚠️  Ahrefs API: Rate limit exceeded (429)
-```
-
-**Rozwiązanie:**
-1. Zmniejsz liczbę analizowanych domen naraz
-2. Zwiększ opóźnienie między requestami (zmień `AHREFS_RPM` na niższą wartość)
-3. Poczekaj kilka minut przed następną analizą
-4. Włącz fallback: `AHREFS_FALLBACK_TO_MOCK=True`
-
-### Problem: Timeout
-
-**Objaw:**
-```
-⏱️  Ahrefs API: Timeout
-```
-
-**Rozwiązanie:**
-1. Sprawdź połączenie internetowe
-2. Sprawdź czy Ahrefs API nie ma problemów (https://status.ahrefs.com)
-3. Włącz fallback dla kontynuacji analizy
-
-### Problem: Dane mockowane zamiast API
-
-**Objaw:**
-- Badge "Mock" zamiast "API"
-- Info box żółty: "Dane mockowane"
-
-**Możliwe przyczyny:**
-1. `AHREFS_MCP_ENABLED=False` w `.env`
-2. Brak klucza API w `.env`
-3. Błąd API i włączony fallback
-4. Nieprawidłowy format klucza API
-
-**Rozwiązanie:**
-1. Sprawdź logi aplikacji w terminalu
-2. Sprawdź konfigurację w `.env`
-3. Zweryfikuj klucz API
-
-## Endpointy Ahrefs API v4
-
-Aplikacja używa następujących endpointów:
-
-```
-GET https://api.ahrefs.com/v4/domain-rating?target={domain}
-GET https://api.ahrefs.com/v4/referring-domains?target={domain}
-GET https://api.ahrefs.com/v4/organic-keywords?target={domain}&mode=prefix
-GET https://api.ahrefs.com/v4/organic-traffic?target={domain}
-```
-
-## Wsparcie
-
-W razie problemów:
-1. Sprawdź logi aplikacji w terminalu
-2. Zajrzyj do sekcji Troubleshooting
-3. Skontaktuj się z zespołem developerskim
-
-## Cennik Ahrefs API
-
-Sprawdź aktualne ceny i plany na: https://ahrefs.com/api/pricing
-
+`ahrefs_service.py` jest wrapperem, który najpierw próbuje API, w razie błędu używa mocka (jeśli fallback włączony) albo propaguje wyjątek.

@@ -57,7 +57,10 @@ async function analyzeSeoCompetitors() {
             console.log('✅ Analiza SEO zakończona:', data);
             renderSeoResultsTable(data.seo_results, data.averages);
             showSeoResults();
-            // Show success message
+            const qName = document.getElementById('quoteName')?.value || '';
+            if (typeof initEstimationSection === 'function') {
+                initEstimationSection(data.seo_results, data.averages, qName);
+            }
             if (window.showAlert) {
                 window.showAlert(`Przeanalizowano ${data.count} domen pomyślnie`, 'success');
             }
@@ -99,6 +102,10 @@ async function loadSeoResults() {
             console.log('📊 Załadowano wyniki analizy SEO:', data);
             renderSeoResultsTable(data.seo_results, data.averages);
             showSeoResults();
+            const qName = document.getElementById('quoteName')?.value || '';
+            if (typeof initEstimationSection === 'function') {
+                initEstimationSection(data.seo_results, data.averages, qName);
+            }
         }
         
     } catch (error) {
@@ -121,6 +128,8 @@ function renderSeoResultsTable(results, averages) {
     displayDataSourceInfo(results);
     
     // Renderuj wiersze z danymi
+    const fmt = (v) => (v == null ? 0 : Number(v).toLocaleString('pl-PL'));
+
     results.forEach((result, index) => {
         const dataSourceBadge = getDataSourceBadge(result.data_source);
         const row = document.createElement('tr');
@@ -128,19 +137,19 @@ function renderSeoResultsTable(results, averages) {
             <td>${index + 1}</td>
             <td>${result.domain} ${dataSourceBadge}</td>
             <td>${result.domain_rating}</td>
-            <td>${result.referring_domains}</td>
-            <td>${result.top3_keywords}</td>
-            <td>${result.top10_keywords}</td>
-            <td>${result.urls_in_top10}</td>
-            <td>${result.urls_in_top50}</td>
-            <td>${result.estimated_traffic}</td>
+            <td>${fmt(result.referring_domains)}</td>
+            <td>${fmt(result.backlinks)}</td>
+            <td>${fmt(result.top3_keywords)}</td>
+            <td>${fmt(result.top10_keywords)}</td>
+            <td>${fmt(result.urls_in_top10)}</td>
+            <td>${fmt(result.urls_in_top50)}</td>
+            <td>${fmt(result.estimated_traffic)}</td>
             <td>${result.avg_kw_per_url}</td>
             <td>${result.avg_traffic_per_kw}</td>
         `;
         tbody.appendChild(row);
     });
-    
-    // Renderuj wiersz ze średnimi
+
     if (averages) {
         const avgRow = document.createElement('tr');
         avgRow.className = 'table-secondary fw-bold';
@@ -148,12 +157,13 @@ function renderSeoResultsTable(results, averages) {
             <td><strong>ŚREDNIO</strong></td>
             <td><strong>-</strong></td>
             <td><strong>${averages.domain_rating || 0}</strong></td>
-            <td><strong>${averages.referring_domains || 0}</strong></td>
-            <td><strong>${averages.top3_keywords || 0}</strong></td>
-            <td><strong>${averages.top10_keywords || 0}</strong></td>
-            <td><strong>${averages.urls_in_top10 || 0}</strong></td>
-            <td><strong>${averages.urls_in_top50 || 0}</strong></td>
-            <td><strong>${averages.estimated_traffic || 0}</strong></td>
+            <td><strong>${fmt(averages.referring_domains)}</strong></td>
+            <td><strong>${fmt(averages.backlinks)}</strong></td>
+            <td><strong>${fmt(averages.top3_keywords)}</strong></td>
+            <td><strong>${fmt(averages.top10_keywords)}</strong></td>
+            <td><strong>${fmt(averages.urls_in_top10)}</strong></td>
+            <td><strong>${fmt(averages.urls_in_top50)}</strong></td>
+            <td><strong>${fmt(averages.estimated_traffic)}</strong></td>
             <td><strong>${averages.avg_kw_per_url || 0}</strong></td>
             <td><strong>${averages.avg_traffic_per_kw || 0}</strong></td>
         `;
@@ -206,11 +216,11 @@ function showSeoProgress(show) {
     const button = document.getElementById('analyzeSeoBtn');
     
     if (show) {
-        progress.classList.remove('d-none');
-        button.disabled = true;
+        if (progress) progress.classList.remove('d-none');
+        if (button) button.disabled = true;
     } else {
-        progress.classList.add('d-none');
-        button.disabled = false;
+        if (progress) progress.classList.add('d-none');
+        if (button) button.disabled = false;
     }
 }
 
@@ -218,14 +228,20 @@ function showSeoProgress(show) {
  * Pokaż wyniki analizy SEO
  */
 function showSeoResults() {
-    document.getElementById('seoResults').classList.remove('d-none');
+    const resultsDiv = document.getElementById('seoResults');
+    if (resultsDiv) {
+        resultsDiv.classList.remove('d-none');
+    }
 }
 
 /**
  * Ukryj wyniki analizy SEO
  */
 function hideSeoResults() {
-    document.getElementById('seoResults').classList.add('d-none');
+    const resultsDiv = document.getElementById('seoResults');
+    if (resultsDiv) {
+        resultsDiv.classList.add('d-none');
+    }
 }
 
 /**
@@ -233,25 +249,39 @@ function hideSeoResults() {
  */
 function showSeoError(message) {
     const errorDiv = document.getElementById('seoError');
-    errorDiv.textContent = message;
-    errorDiv.classList.remove('d-none');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('d-none');
+    } else {
+        console.error('Element seoError nie został znaleziony');
+    }
 }
 
 /**
  * Ukryj błąd analizy SEO
  */
 function hideSeoError() {
-    document.getElementById('seoError').classList.add('d-none');
+    const errorDiv = document.getElementById('seoError');
+    if (errorDiv) {
+        errorDiv.classList.add('d-none');
+    }
 }
 
 /**
  * Zwróć badge dla źródła danych
  */
 function getDataSourceBadge(dataSource) {
-    if (dataSource === 'ahrefs_api') {
-        return '<span class="badge bg-success ms-2">API</span>';
-    } else {
-        return '<span class="badge bg-secondary ms-2">Mock</span>';
+    switch (dataSource) {
+        case 'senuto+ahrefs':
+            return '<span class="badge bg-primary ms-2" title="Senuto (TOP/URL/ruch) + Ahrefs (DR/Domains)">Senuto+Ahrefs</span>';
+        case 'senuto':
+            return '<span class="badge bg-info ms-2" title="Dane z Senuto API">Senuto</span>';
+        case 'ahrefs_api':
+            return '<span class="badge bg-success ms-2" title="Dane z Ahrefs API">Ahrefs</span>';
+        case 'mock':
+            return '<span class="badge bg-secondary ms-2">Mock</span>';
+        default:
+            return `<span class="badge bg-dark ms-2">${dataSource || 'unknown'}</span>`;
     }
 }
 
@@ -260,39 +290,70 @@ function getDataSourceBadge(dataSource) {
  */
 function displayDataSourceInfo(results) {
     if (!results || results.length === 0) return;
-    
-    // Sprawdź czy wszystkie wyniki mają to samo źródło
-    const apiCount = results.filter(r => r.data_source === 'ahrefs_api').length;
-    const mockCount = results.filter(r => r.data_source === 'mock').length;
-    
+
+    const counts = results.reduce((acc, r) => {
+        const key = r.data_source || 'unknown';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
+
     let infoBox = document.getElementById('seoDataSourceInfo');
     if (!infoBox) {
-        // Utwórz info box jeśli nie istnieje
         infoBox = document.createElement('div');
         infoBox.id = 'seoDataSourceInfo';
         infoBox.className = 'alert mb-3';
-        
         const resultsDiv = document.getElementById('seoResults');
         resultsDiv.insertBefore(infoBox, resultsDiv.firstChild);
     }
-    
-    if (apiCount > 0 && mockCount === 0) {
-        infoBox.className = 'alert alert-success mb-3';
-        infoBox.innerHTML = `
-            <i class="bi bi-check-circle-fill"></i>
-            <strong>Dane z Ahrefs API</strong> - Wszystkie wyniki pochodzą z prawdziwego API Ahrefs
-        `;
-    } else if (mockCount > 0 && apiCount === 0) {
-        infoBox.className = 'alert alert-warning mb-3';
-        infoBox.innerHTML = `
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>Dane mockowane</strong> - Wyniki są symulowane (brak lub błąd API Ahrefs)
-        `;
+
+    const sources = Object.keys(counts);
+    const total = results.length;
+    const sourceLabels = {
+        'senuto+ahrefs': 'Senuto + Ahrefs',
+        'senuto': 'Senuto',
+        'ahrefs_api': 'Ahrefs API',
+        'mock': 'mockowane',
+        'unknown': 'nieznane'
+    };
+
+    if (sources.length === 1) {
+        const only = sources[0];
+        if (only === 'senuto+ahrefs') {
+            infoBox.className = 'alert alert-success mb-3';
+            infoBox.innerHTML = `
+                <i class="bi bi-check-circle-fill"></i>
+                <strong>Dane hybrydowe</strong> – TOP/URL/ruch z <em>Senuto</em>, Domain Rating i Referring Domains z <em>Ahrefs</em>.
+            `;
+        } else if (only === 'senuto') {
+            infoBox.className = 'alert alert-info mb-3';
+            infoBox.innerHTML = `
+                <i class="bi bi-info-circle-fill"></i>
+                <strong>Dane z Senuto API</strong> – DR i Referring Domains niedostępne (Ahrefs wyłączony lub błąd).
+            `;
+        } else if (only === 'ahrefs_api') {
+            infoBox.className = 'alert alert-warning mb-3';
+            infoBox.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Dane wyłącznie z Ahrefs</strong> – Senuto niedostępne (sprawdź <code>SENUTO_API_TOKEN</code>).
+            `;
+        } else if (only === 'mock') {
+            infoBox.className = 'alert alert-warning mb-3';
+            infoBox.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Dane mockowane</strong> – Senuto i Ahrefs nie odpowiadają.
+            `;
+        } else {
+            infoBox.className = 'alert alert-secondary mb-3';
+            infoBox.innerHTML = `<i class="bi bi-info-circle"></i> Źródło danych: <strong>${only}</strong>`;
+        }
     } else {
+        const breakdown = sources
+            .map(s => `${counts[s]}× ${sourceLabels[s] || s}`)
+            .join(', ');
         infoBox.className = 'alert alert-info mb-3';
         infoBox.innerHTML = `
             <i class="bi bi-info-circle-fill"></i>
-            <strong>Dane mieszane</strong> - ${apiCount} z Ahrefs API, ${mockCount} mockowane
+            <strong>Dane mieszane</strong> (${total} domen) – ${breakdown}.
         `;
     }
 }

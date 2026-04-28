@@ -1,110 +1,57 @@
 """
-Serwis Ahrefs dla analizy SEO - tylko prawdziwe dane API.
+Serwis Ahrefs dla analizy SEO.
+
+Korzysta z realnego klienta `ahrefs_api_client` (Ahrefs API v3).
+Jeśli klucz nie działa lub `AHREFS_FALLBACK_TO_MOCK=True` — fallback na mock.
 """
 
 from typing import Dict, Any, Optional
-from urllib.parse import urlparse
+
 from config import Config
+from ahrefs_api_client import ahrefs_api_client, AhrefsApiError
 from ahrefs_mcp_client import ahrefs_mcp_client
 
 
 class AhrefsService:
-    """
-    Serwis do pobierania danych SEO z Ahrefs API.
-    NIE UŻYWA mockowanych danych - tylko prawdziwe dane z API.
-    """
-    
-    def __init__(self, config: Optional[Config] = None):
-        """
-        Inicjalizuje serwis Ahrefs.
-        
-        Args:
-            config: Konfiguracja aplikacji (opcjonalna)
-        """
-        self.config = config or Config()
-        self.client = ahrefs_mcp_client
-        
-        # Sprawdź czy API jest dostępne
-        if not self.config.AHREFS_MCP_API_KEY:
-            print("🔴 Ahrefs Service: Brak klucza API - operacje będą kończyć się błędem")
-        elif not self.config.AHREFS_MCP_ENABLED:
-            print("🔴 Ahrefs Service: MCP wyłączony - operacje będą kończyć się błędem")
+    """Wrapper na Ahrefs API z opcjonalnym fallbackiem na mocki."""
+
+    def __init__(self, cfg: Optional[Config] = None):
+        self.config = cfg or Config()
+        self.api = ahrefs_api_client
+        self.mock = ahrefs_mcp_client
+
+        if not self.config.AHREFS_API_KEY:
+            print("🔴 Ahrefs Service: brak klucza API")
+        elif not self.config.AHREFS_ENABLED:
+            print("🔴 Ahrefs Service: wyłączony (AHREFS_ENABLED=False)")
         else:
-            print("🟢 Ahrefs Service: Używam Ahrefs API")
-    
-    def _extract_domain(self, domain_input: str) -> str:
-        """
-        Wyciąga czystą domenę z inputu.
-        
-        Args:
-            domain_input: Domena lub URL
-            
-        Returns:
-            Czysta domena (np. 'example.com')
-        """
-        try:
-            # Jeśli nie zaczyna się od http, dodaj protokół
-            if not domain_input.startswith(('http://', 'https://')):
-                domain_input = 'https://' + domain_input
-            
-            parsed = urlparse(domain_input)
-            domain = parsed.netloc.lower()
-            
-            # Usuń www. z początku
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            
-            # Usuń port jeśli istnieje
-            if ':' in domain:
-                domain = domain.split(':')[0]
-            
-            return domain
-        except Exception as e:
-            print(f"❌ Błąd podczas ekstraktowania domeny z '{domain_input}': {str(e)}")
-            return domain_input.lower().strip()
-    
+            print("🟢 Ahrefs Service: Używam Ahrefs API v3")
+
     def get_domain_metrics(self, domain_input: str) -> Dict[str, Any]:
-        """
-        Pobiera metryki SEO dla domeny z Ahrefs API.
-        
-        Args:
-            domain_input: Domena lub URL do analizy
-            
-        Returns:
-            Słownik z metrykami SEO
-            
-        Raises:
-            Exception: Jeśli API nie jest skonfigurowane lub zwraca błąd
-        """
-        domain = self._extract_domain(domain_input)
-        print(f"🔍 Pobieranie danych SEO z Ahrefs API dla domeny: {domain}")
-        
-        # Sprawdź czy API jest dostępne
-        if not self.config.AHREFS_MCP_API_KEY:
-            raise Exception("Brak klucza API Ahrefs. Ustaw AHREFS_MCP_API_KEY w pliku .env")
-        
-        if not self.config.AHREFS_MCP_ENABLED:
-            raise Exception("Ahrefs MCP jest wyłączone. Ustaw AHREFS_MCP_ENABLED=True w pliku .env")
-        
+        """Pobiera DR + Referring Domains + Backlinks dla domeny."""
+        if not self.config.AHREFS_ENABLED:
+            raise Exception("Ahrefs jest wyłączony (AHREFS_ENABLED=False)")
+        if not self.config.AHREFS_API_KEY:
+            if self.config.AHREFS_FALLBACK_TO_MOCK:
+                return self._with_mock(domain_input, reason="brak klucza API")
+            raise Exception("Brak AHREFS_API_KEY w .env")
+
         try:
-            # Pobierz dane z Ahrefs API przez MCP
-            print(f"📡 AhrefsService: Wysyłam zapytanie do Ahrefs API dla {domain}")
-            metrics = self.client.get_domain_metrics(domain)
-            
-            if not metrics:
-                raise Exception(f"API Ahrefs nie zwróciło danych dla domeny {domain}")
-            
-            # Dodaj informację o źródle danych
-            metrics['data_source'] = 'ahrefs_api'
-            print(f"✅ AhrefsService: Pomyślnie pobrano dane z Ahrefs API dla {domain}")
-            
-            return metrics
-            
-        except Exception as e:
-            error_msg = f"Błąd podczas pobierania danych z Ahrefs API dla {domain}: {str(e)}"
-            print(f"❌ AhrefsService: {error_msg}")
-            raise Exception(error_msg)
+            return self.api.get_domain_metrics(domain_input)
+        except AhrefsApiError as exc:
+            if self.config.AHREFS_FALLBACK_TO_MOCK:
+                return self._with_mock(domain_input, reason=str(exc))
+            raise Exception(f"Błąd Ahrefs API dla {domain_input}: {exc}") from exc
+
+    def _with_mock(self, domain_input: str, *, reason: str) -> Dict[str, Any]:
+        print(f"⚠️  Ahrefs: fallback na mock ({reason})")
+        metrics = self.mock.get_domain_metrics(domain_input)
+        if metrics is None:
+            metrics = {}
+        # Mock nie ma backlinks — uzupełniamy
+        metrics.setdefault("backlinks", 0)
+        metrics["data_source"] = "ahrefs_mock"
+        return metrics
 
 
-# Singleton instancji serwisu
 ahrefs_service = AhrefsService()

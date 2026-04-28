@@ -5,13 +5,77 @@ Logika biznesowa dla analizy SEO domen.
 import csv
 import os
 from typing import List, Dict, Any, Tuple
+
+from config import config
 from models import SeoAnalysis, db
 from ahrefs_service import ahrefs_service
+from senuto_service import senuto_service, SenutoServiceError
 
 
 class SeoAnalysisLogic:
     """Klasa zawierająca logikę analizy SEO domen."""
-    
+
+    @staticmethod
+    def _fetch_combined_metrics(domain: str) -> Dict[str, Any]:
+        """
+        Pobiera metryki SEO łącząc dwa źródła:
+        - Senuto: TOP3/TOP10/TOP50, urls_in_top10/50, estimated_traffic.
+        - Ahrefs: domain_rating, referring_domains.
+
+        Pola brakujące w jednym ze źródeł zerujemy. data_source przyjmuje:
+        'senuto+ahrefs', 'senuto', 'ahrefs_api', 'mock' lub 'unknown'.
+        """
+        senuto_payload: Dict[str, Any] = {}
+        ahrefs_payload: Dict[str, Any] = {}
+        senuto_ok = False
+        ahrefs_ok = False
+
+        if config.SENUTO_ENABLED:
+            try:
+                senuto_payload = senuto_service.get_domain_metrics(domain)
+                senuto_ok = True
+            except SenutoServiceError as exc:
+                print(f"⚠️  Senuto nie zwróciło danych dla {domain}: {exc}")
+            except Exception as exc:
+                print(f"⚠️  Nieoczekiwany błąd Senuto dla {domain}: {exc}")
+
+        if config.AHREFS_ENABLED:
+            try:
+                ahrefs_payload = ahrefs_service.get_domain_metrics(domain)
+                ahrefs_ok = True
+            except Exception as exc:
+                print(f"⚠️  Ahrefs nie zwróciło DR/Domains/Backlinks dla {domain}: {exc}")
+
+        if not senuto_ok and not ahrefs_ok:
+            raise RuntimeError(
+                f"Brak danych dla {domain} — Senuto i Ahrefs niedostępne. "
+                "Sprawdź SENUTO_API_TOKEN i AHREFS_MCP_API_KEY w .env."
+            )
+
+        # Domena: preferuj wersję znormalizowaną przez Senuto, fallback Ahrefs
+        domain_value = senuto_payload.get("domain") or ahrefs_payload.get("domain") or domain
+
+        if senuto_ok and ahrefs_ok:
+            data_source = "senuto+ahrefs"
+        elif senuto_ok:
+            data_source = "senuto"
+        else:
+            data_source = ahrefs_payload.get("data_source", "ahrefs_api")
+
+        return {
+            "domain": domain_value,
+            "domain_rating": ahrefs_payload.get("domain_rating", 0),
+            "referring_domains": ahrefs_payload.get("referring_domains", 0),
+            "backlinks": ahrefs_payload.get("backlinks", 0),
+            "top3_keywords": senuto_payload.get("top3_keywords", 0),
+            "top10_keywords": senuto_payload.get("top10_keywords", 0),
+            "top50_keywords": senuto_payload.get("top50_keywords", 0),
+            "urls_in_top10": senuto_payload.get("urls_in_top10", 0),
+            "urls_in_top50": senuto_payload.get("urls_in_top50", 0),
+            "estimated_traffic": senuto_payload.get("estimated_traffic", 0),
+            "data_source": data_source,
+        }
+
     @staticmethod
     def parse_domains_input(domains_text: str) -> List[str]:
         """
@@ -92,32 +156,26 @@ class SeoAnalysisLogic:
         
         for i, domain in enumerate(domains, 1):
             print(f"📊 SeoAnalysisLogic: [{i}/{len(domains)}] Analizuję domenę: {domain}")
-            
+
             try:
-                # Pobierz dane SEO z serwisu Ahrefs (API lub mock)
-                print(f"🔍 SeoAnalysisLogic: Wywołuję ahrefs_service.get_domain_metrics dla {domain}")
-                seo_data = ahrefs_service.get_domain_metrics(domain)
+                seo_data = SeoAnalysisLogic._fetch_combined_metrics(domain)
                 print(f"📊 SeoAnalysisLogic: Otrzymano dane SEO dla {domain}: {seo_data}")
-                
+
                 # Oblicz wartości średnie
-                print(f"🧮 SeoAnalysisLogic: Obliczam wartości średnie dla {domain}")
                 avg_kw_per_url = 0
                 if seo_data['urls_in_top10'] > 0:
                     avg_kw_per_url = seo_data['top10_keywords'] / seo_data['urls_in_top10']
-                    print(f"📊 SeoAnalysisLogic: avg_kw_per_url = {avg_kw_per_url}")
-                
+
                 avg_traffic_per_kw = 0
                 if seo_data['top10_keywords'] > 0:
                     avg_traffic_per_kw = seo_data['estimated_traffic'] / seo_data['top10_keywords']
-                    print(f"📊 SeoAnalysisLogic: avg_traffic_per_kw = {avg_traffic_per_kw}")
-                
-                # Utwórz rekord w bazie danych
-                print(f"💾 SeoAnalysisLogic: Tworzę rekord SeoAnalysis dla {domain}")
+
                 seo_analysis = SeoAnalysis(
                     quote_id=quote_id,
                     domain=seo_data['domain'],
                     domain_rating=seo_data['domain_rating'],
                     referring_domains=seo_data['referring_domains'],
+                    backlinks=seo_data.get('backlinks', 0),
                     top3_keywords=seo_data['top3_keywords'],
                     top10_keywords=seo_data['top10_keywords'],
                     top50_keywords=seo_data['top50_keywords'],
@@ -126,16 +184,19 @@ class SeoAnalysisLogic:
                     estimated_traffic=seo_data['estimated_traffic'],
                     avg_kw_per_url=round(avg_kw_per_url, 2),
                     avg_traffic_per_kw=round(avg_traffic_per_kw, 2),
-                    data_source=seo_data.get('data_source', 'mock')
+                    data_source=seo_data.get('data_source', 'unknown')
                 )
-                
-                print(f"➕ SeoAnalysisLogic: Dodaję rekord do sesji bazy danych")
+
                 db.session.add(seo_analysis)
-                db.session.flush()  # Flush to set created_at before to_dict()
+                db.session.flush()
                 results.append(seo_analysis.to_dict())
-                
-                print(f"✅ SeoAnalysisLogic: Zapisano dane dla {domain}: DR={seo_data['domain_rating']}, KW top10={seo_data['top10_keywords']}")
-                
+
+                print(
+                    f"✅ SeoAnalysisLogic: Zapisano {domain} "
+                    f"(źródło={seo_data.get('data_source')}, DR={seo_data['domain_rating']}, "
+                    f"top10={seo_data['top10_keywords']})"
+                )
+
             except Exception as e:
                 print(f"❌ SeoAnalysisLogic: Błąd podczas analizy domeny '{domain}': {str(e)}")
                 print(f"🔍 SeoAnalysisLogic: Typ błędu: {type(e).__name__}")
@@ -164,21 +225,21 @@ class SeoAnalysisLogic:
         if not seo_results:
             return {}
         
-        # Pola numeryczne do uśrednienia
         numeric_fields = [
-            'domain_rating', 'referring_domains', 'top3_keywords', 
-            'top10_keywords', 'top50_keywords', 'urls_in_top10', 
-            'urls_in_top50', 'estimated_traffic', 'avg_kw_per_url', 'avg_traffic_per_kw'
+            'domain_rating', 'referring_domains', 'backlinks',
+            'top3_keywords', 'top10_keywords', 'top50_keywords',
+            'urls_in_top10', 'urls_in_top50', 'estimated_traffic',
+            'avg_kw_per_url', 'avg_traffic_per_kw',
         ]
-        
+
         averages = {}
         for field in numeric_fields:
-            values = [result[field] for result in seo_results if result[field] is not None]
+            values = [result.get(field) for result in seo_results if result.get(field) is not None]
             if values:
                 averages[field] = round(sum(values) / len(values), 2)
             else:
                 averages[field] = 0
-        
+
         return averages
     
     @staticmethod
@@ -214,21 +275,21 @@ class SeoAnalysisLogic:
             with open(filepath, 'w', newline='', encoding='utf-8-sig') as csvfile:
                 # Nagłówki kolumn (zgodnie z wymaganiami)
                 fieldnames = [
-                    '#', 'Domena', 'Domain Rating', 'Domains', 'TOP 3', 'TOP 10',
-                    'Liczba URL w TOP 10', 'Liczba URL w TOP 50', 'Szacowany ruch',
-                    'średnio słów kl. na URL', 'średnio ruchu/słowo'
+                    '#', 'Domena', 'Domain Rating', 'Domains', 'Backlinks',
+                    'TOP 3', 'TOP 10', 'Liczba URL w TOP 10', 'Liczba URL w TOP 50',
+                    'Szacowany ruch', 'średnio słów kl. na URL', 'średnio ruchu/słowo'
                 ]
-                
+
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
-                
-                # Zapisz dane dla każdej domeny
+
                 for i, result in enumerate(results_data, 1):
                     writer.writerow({
                         '#': i,
                         'Domena': result['domain'],
                         'Domain Rating': result['domain_rating'],
                         'Domains': result['referring_domains'],
+                        'Backlinks': result.get('backlinks', 0),
                         'TOP 3': result['top3_keywords'],
                         'TOP 10': result['top10_keywords'],
                         'Liczba URL w TOP 10': result['urls_in_top10'],
@@ -237,13 +298,13 @@ class SeoAnalysisLogic:
                         'średnio słów kl. na URL': result['avg_kw_per_url'],
                         'średnio ruchu/słowo': result['avg_traffic_per_kw']
                     })
-                
-                # Zapisz wiersz ze średnimi
+
                 writer.writerow({
                     '#': 'ŚREDNIO',
                     'Domena': '',
                     'Domain Rating': averages.get('domain_rating', 0),
                     'Domains': averages.get('referring_domains', 0),
+                    'Backlinks': averages.get('backlinks', 0),
                     'TOP 3': averages.get('top3_keywords', 0),
                     'TOP 10': averages.get('top10_keywords', 0),
                     'Liczba URL w TOP 10': averages.get('urls_in_top10', 0),

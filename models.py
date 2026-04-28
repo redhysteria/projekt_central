@@ -34,6 +34,8 @@ class Quote(db.Model):
     lb_marza_month = db.Column(db.String(50), default='Od Miesiąc 02')
     lb_budzet_month = db.Column(db.String(50), default='Od Miesiąc 02')
     content_month = db.Column(db.String(50), default='Od Miesiąc 02')
+
+    brief_json = db.Column(db.Text, nullable=True, default=None)
     
     # Relationship
     items = db.relationship('QuoteItem', backref='quote', lazy=True, cascade='all, delete-orphan')
@@ -161,27 +163,74 @@ class Competitor(db.Model):
             'created_at': self.created_at.isoformat()
         }
 
+class ForecastSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    quote_id = db.Column(db.Integer, db.ForeignKey('quote.id'), unique=True, nullable=False)
+    client_domain = db.Column(db.String(255), default='')
+    leader_domain = db.Column(db.String(255), default='')
+    conversion_rate = db.Column(db.Float, default=0.018)
+    aov = db.Column(db.Float, default=0)
+    margin = db.Column(db.Float, default=0.15)
+    fixed_seo_budget = db.Column(db.Float, default=0)
+    monthly_content_volume = db.Column(db.Integer, default=0)
+    lb_rate_override = db.Column(db.Float, nullable=True, default=None)
+    lb_cost_override = db.Column(db.Float, nullable=True, default=None)
+    seasonality_json = db.Column(db.Text, default='')
+    forecast_json = db.Column(db.Text, default='')
+    ga4_csv_filename = db.Column(db.String(255), nullable=True, default=None)
+    ga4_data_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_forecast_json = db.Column(db.Text, nullable=True, default=None)
+    ga4_seasonality_json = db.Column(db.Text, nullable=True, default=None)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    quote = db.relationship('Quote', backref=db.backref('forecast_settings', uselist=False))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'quote_id': self.quote_id,
+            'client_domain': self.client_domain,
+            'leader_domain': self.leader_domain,
+            'conversion_rate': self.conversion_rate,
+            'aov': self.aov,
+            'margin': self.margin,
+            'fixed_seo_budget': self.fixed_seo_budget,
+            'monthly_content_volume': self.monthly_content_volume,
+            'lb_rate_override': self.lb_rate_override,
+            'lb_cost_override': self.lb_cost_override,
+            'seasonality_json': self.seasonality_json,
+            'forecast_json': self.forecast_json,
+            'ga4_csv_filename': self.ga4_csv_filename,
+            'ga4_data_json': self.ga4_data_json,
+            'prophet_forecast_json': self.prophet_forecast_json,
+            'ga4_seasonality_json': self.ga4_seasonality_json,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class SeoAnalysis(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     quote_id = db.Column(db.Integer, db.ForeignKey('quote.id'), nullable=False)
     domain = db.Column(db.String(255), nullable=False)
     
-    # Raw SEO parameters (mockowane dane z Ahrefs)
+    # Raw SEO parameters
+    # Ahrefs API v3: domain_rating, referring_domains, backlinks
+    # Senuto API:    top3/top10/top50, urls_in_top10/50, estimated_traffic
     domain_rating = db.Column(db.Float, nullable=False, default=0)
     referring_domains = db.Column(db.Integer, nullable=False, default=0)
+    backlinks = db.Column(db.Integer, nullable=False, default=0)
     top3_keywords = db.Column(db.Integer, nullable=False, default=0)
     top10_keywords = db.Column(db.Integer, nullable=False, default=0)
     top50_keywords = db.Column(db.Integer, nullable=False, default=0)
     urls_in_top10 = db.Column(db.Integer, nullable=False, default=0)
     urls_in_top50 = db.Column(db.Integer, nullable=False, default=0)
     estimated_traffic = db.Column(db.Integer, nullable=False, default=0)
-    
-    # Calculated values
-    avg_kw_per_url = db.Column(db.Float, nullable=False, default=0)  # średnia liczba KW w top10 na URL
-    avg_traffic_per_kw = db.Column(db.Float, nullable=False, default=0)  # średni ruch na słowo kluczowe
-    
-    # Data source
-    data_source = db.Column(db.String(50), nullable=False, default='mock')  # 'ahrefs_api' lub 'mock'
+
+    avg_kw_per_url = db.Column(db.Float, nullable=False, default=0)
+    avg_traffic_per_kw = db.Column(db.Float, nullable=False, default=0)
+
+    # 'senuto+ahrefs', 'senuto', 'ahrefs_api', 'ahrefs_mock'
+    data_source = db.Column(db.String(50), nullable=False, default='unknown')
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -195,6 +244,7 @@ class SeoAnalysis(db.Model):
             'domain': self.domain,
             'domain_rating': self.domain_rating,
             'referring_domains': self.referring_domains,
+            'backlinks': self.backlinks,
             'top3_keywords': self.top3_keywords,
             'top10_keywords': self.top10_keywords,
             'top50_keywords': self.top50_keywords,
