@@ -728,8 +728,9 @@ git commit -m "feat(google-ads): wpięcie toru produktowego w planer + opłata o
 
 - [ ] **Step 1: Uruchom wszystkie testy JS**
 
-Run: `node --test tests/`
-Expected: PASS — wszystkie testy z `tests/google_ads_compute.test.js`.
+Run: `node --test 'tests/*.test.js'`
+(Uwaga: w Node 22.14 `node --test tests/` traktuje katalog jako moduł i pada — użyj jawnego wzorca glob.)
+Expected: PASS — wszystkie testy z `tests/google_ads_compute.test.js` (7/7).
 
 - [ ] **Step 2: Uruchom smoke test backendu**
 

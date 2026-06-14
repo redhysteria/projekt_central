@@ -10,7 +10,13 @@ Aplikacja webowa do tworzenia i zarządzania wycenami projektów SEO i Content M
 - **Rozkład miesięczny** - automatyczny rozkład kosztów na 12 miesięcy
 - **Zarządzanie cennikiem** - edycja stawek specjalistów
 - **Analiza SEO konkurencji** - hybryda Senuto (TOP/URL/ruch) + Ahrefs (DR/Domains)
+- **Planer Google Ads** - szacowanie budżetu mediowego (Search z fraz + **kampania produktowa Shopping/PMax**) i opłaty agencji
 - **Eksport Excel** - eksport wycen w formacie identycznym z Google Sheets
+
+### 🛒 Planer Google Ads — kampania produktowa
+- **Search**: budżet z listy fraz (wolumen × CTR × CPC × współczynnik bezpieczeństwa).
+- **Kampania produktowa (Shopping/PMax)**: budżet = `docelowy przychód ÷ docelowy ROAS`; CPC i CVR Shopping podawane jako wejścia liczą kliknięcia/konwersje.
+- **Opłata agencji liczona od SUMY** budżetu Search + Produktowego (wg tabeli progowej), a prognoza (konwersje, przychód, ROAS, marża) sumuje oba tory.
 
 ### 📊 Automatyczne zadania
 - **LB marża** (15% kwoty LB) - rozkład od wybranego miesiąca
