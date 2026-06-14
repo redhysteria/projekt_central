@@ -36,5 +36,28 @@
         return { budget, clicks, conversions, impliedRevenue };
     }
 
-    return { computeProductCampaign };
+    /**
+     * Podsumowanie zbiorcze obu torów. Opłata agencji liczona OD SUMY budżetów.
+     * @param {{searchBudget:number,searchConversions:number,searchRevenue:number,
+     *          productBudget:number,productConversions:number,productRevenue:number,
+     *          margin:number, feeFn:function(number):number}} p
+     */
+    function computeCombinedSummary(p) {
+        const searchBudget = Number(p.searchBudget) || 0;
+        const productBudget = Number(p.productBudget) || 0;
+        const margin = Number(p.margin) || 0;
+
+        const combinedBudget = searchBudget + productBudget;
+        const agencyFee = typeof p.feeFn === 'function' ? (Number(p.feeFn(combinedBudget)) || 0) : 0;
+        const totalCost = combinedBudget + agencyFee;
+
+        const combinedConversions = (Number(p.searchConversions) || 0) + (Number(p.productConversions) || 0);
+        const combinedRevenue = (Number(p.searchRevenue) || 0) + (Number(p.productRevenue) || 0);
+        const roas = totalCost > 0 ? combinedRevenue / totalCost : 0;
+        const netMargin = combinedRevenue * margin - totalCost;
+
+        return { combinedBudget, agencyFee, totalCost, combinedConversions, combinedRevenue, roas, netMargin };
+    }
+
+    return { computeProductCampaign, computeCombinedSummary };
 }));

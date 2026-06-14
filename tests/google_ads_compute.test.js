@@ -38,3 +38,32 @@ test('produkt: brak CPC => kliki/konwersje 0, budżet dalej liczony', () => {
     assert.strictEqual(r.clicks, 0);
     assert.strictEqual(r.conversions, 0);
 });
+
+test('suma: opłata agencji liczona od budżetu łącznego, nie samego Search', () => {
+    const s = computeCombinedSummary({
+        searchBudget: 4000, searchConversions: 2, searchRevenue: 2000,
+        productBudget: 5000, productConversions: 3, productRevenue: 20000,
+        margin: 0.15,
+        feeFn: (b) => computeGoogleAdsManagementFee(b).fee,
+    });
+    assert.strictEqual(s.combinedBudget, 9000);
+    // 9000 => próg 8001-12000: 1900 + 18% ponad 8000 = 1900 + 180 = 2080
+    assert.strictEqual(s.agencyFee, 2080);
+    assert.strictEqual(s.totalCost, 11080);           // 9000 + 2080
+    assert.strictEqual(s.combinedConversions, 5);     // 2 + 3
+    assert.strictEqual(s.combinedRevenue, 22000);     // 2000 + 20000
+    assert.ok(Math.abs(s.roas - 22000 / 11080) < 1e-9);
+    assert.ok(Math.abs(s.netMargin - (22000 * 0.15 - 11080)) < 1e-9);
+});
+
+test('suma: produkt = 0 => zachowanie jak sam Search', () => {
+    const s = computeCombinedSummary({
+        searchBudget: 4000, searchConversions: 2, searchRevenue: 2000,
+        productBudget: 0, productConversions: 0, productRevenue: 0,
+        margin: 0.15,
+        feeFn: (b) => computeGoogleAdsManagementFee(b).fee,
+    });
+    assert.strictEqual(s.combinedBudget, 4000);
+    assert.strictEqual(s.agencyFee, 1500);   // próg <=6000
+    assert.strictEqual(s.totalCost, 5500);
+});
