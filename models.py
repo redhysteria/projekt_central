@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import json
 
 db = SQLAlchemy()
 
@@ -181,6 +182,12 @@ class ForecastSettings(db.Model):
     ga4_data_json = db.Column(db.Text, nullable=True, default=None)
     prophet_forecast_json = db.Column(db.Text, nullable=True, default=None)
     ga4_seasonality_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_revenue_forecast_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_fit_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_revenue_fit_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_transactions_forecast_json = db.Column(db.Text, nullable=True, default=None)
+    prophet_transactions_fit_json = db.Column(db.Text, nullable=True, default=None)
+    no_effect_months = db.Column(db.Integer, nullable=False, default=2)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     quote = db.relationship('Quote', backref=db.backref('forecast_settings', uselist=False))
@@ -204,6 +211,58 @@ class ForecastSettings(db.Model):
             'ga4_data_json': self.ga4_data_json,
             'prophet_forecast_json': self.prophet_forecast_json,
             'ga4_seasonality_json': self.ga4_seasonality_json,
+            'prophet_revenue_forecast_json': self.prophet_revenue_forecast_json,
+            'prophet_fit_json': self.prophet_fit_json,
+            'prophet_revenue_fit_json': self.prophet_revenue_fit_json,
+            'prophet_transactions_forecast_json': self.prophet_transactions_forecast_json,
+            'prophet_transactions_fit_json': self.prophet_transactions_fit_json,
+            'no_effect_months': self.no_effect_months,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class GoogleAdsSettings(db.Model):
+    """Ustawienia planera Google Ads powiązane z wyceną."""
+    id = db.Column(db.Integer, primary_key=True)
+    quote_id = db.Column(db.Integer, db.ForeignKey('quote.id'), unique=True, nullable=False)
+    media_budget = db.Column(db.Float, nullable=True, default=None)
+    business_description = db.Column(db.Text, default='')
+    ctr = db.Column(db.Float, default=4.0)
+    safety_factor = db.Column(db.Float, default=1.2)
+    manual_clicks = db.Column(db.Float, nullable=True, default=None)
+    usd_pln_rate = db.Column(db.Float, default=3.64)
+    product_enabled = db.Column(db.Boolean, default=False)
+    product_target_revenue = db.Column(db.Float, nullable=True, default=None)
+    product_target_roas = db.Column(db.Float, default=4.0)
+    product_cpc = db.Column(db.Float, nullable=True, default=None)
+    product_cvr = db.Column(db.Float, nullable=True, default=None)
+    keywords_json = db.Column(db.Text, default='[]')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    quote = db.relationship('Quote', backref=db.backref('google_ads_settings', uselist=False))
+
+    def to_dict(self):
+        try:
+            keywords = json.loads(self.keywords_json) if self.keywords_json else []
+        except (json.JSONDecodeError, TypeError):
+            keywords = []
+        if not isinstance(keywords, list):
+            keywords = []
+        return {
+            'id': self.id,
+            'quote_id': self.quote_id,
+            'media_budget': self.media_budget,
+            'business_description': self.business_description or '',
+            'ctr': self.ctr if self.ctr is not None else 4.0,
+            'safety_factor': self.safety_factor if self.safety_factor is not None else 1.2,
+            'manual_clicks': self.manual_clicks,
+            'usd_pln_rate': self.usd_pln_rate if self.usd_pln_rate is not None else 3.64,
+            'keywords': keywords,
+            'product_enabled': bool(self.product_enabled),
+            'product_target_revenue': self.product_target_revenue,
+            'product_target_roas': self.product_target_roas if self.product_target_roas is not None else 4.0,
+            'product_cpc': self.product_cpc,
+            'product_cvr': self.product_cvr,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 
