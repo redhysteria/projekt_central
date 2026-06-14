@@ -41,7 +41,7 @@
                 </div>
 
                 <!-- Global Parameters Section -->
-                <div class="card glass-card glass-card-hover slide-up mb-4">
+                <div id="sectionQuoteParams" class="card glass-card glass-card-hover slide-up mb-4 quote-toc-section">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
                             <h5 class="mb-0 text-light">Parametry wyceny</h5>
@@ -74,7 +74,7 @@
                 </div>
 
                 <!-- Brand Brief AI Section -->
-                <div id="brandBriefSection" class="card glass-card glass-card-hover mb-4 d-none">
+                <div id="brandBriefSection" class="card glass-card glass-card-hover mb-4 d-none quote-toc-section">
                     <div class="card-header">
                         <h5 class="mb-0 text-light"><i class="bi bi-stars"></i> Brief marki (AI)</h5>
                     </div>
@@ -82,7 +82,7 @@
                 </div>
 
                 <!-- Add Task Section -->
-                <div class="card glass-card glass-card-hover mb-4">
+                <div id="sectionAddTask" class="card glass-card glass-card-hover mb-4 quote-toc-section">
                     <div class="card-header">
                         <h5 class="mb-0 text-light">Dodaj nowe zadanie</h5>
                     </div>
@@ -150,7 +150,7 @@
                 </div>
 
                 <!-- Items Section -->
-                <div class="card glass-card glass-card-hover mb-4">
+                <div id="sectionItems" class="card glass-card glass-card-hover mb-4 quote-toc-section">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 text-light">Lista zadań</h5>
                         <button class="btn btn-outline-success" onclick="importTemplates()" title="Importuj domyślne zadania z szablonów">
@@ -180,7 +180,7 @@
                 </div>
 
                 <!-- Monthly Distribution Section -->
-                <div class="card glass-card glass-card-hover mb-4">
+                <div id="sectionMonthly" class="card glass-card glass-card-hover mb-4 quote-toc-section">
                     <div class="card-header">
                         <h5 class="mb-0 text-light">Rozkład miesięczny</h5>
                     </div>
@@ -232,7 +232,7 @@
                 </div>
 
                 <!-- SEO Competitors Analysis Section -->
-                <div class="card glass-card glass-card-hover">
+                <div id="sectionCompetitors" class="card glass-card glass-card-hover quote-toc-section">
                     <div class="card-header">
                         <h5 class="mb-0 text-light">
                             <i class="bi bi-search"></i> Wyznaczanie domen konkurentów
@@ -298,7 +298,7 @@
                 </div>
 
                 <!-- SEO Analysis Section -->
-                <div class="card glass-card glass-card-hover">
+                <div id="sectionSeoAnalysis" class="card glass-card glass-card-hover quote-toc-section">
                     <div class="card-header">
                         <h5 class="mb-0 text-light">
                             <i class="bi bi-graph-up"></i> Analiza ruchu Ahrefs
@@ -331,9 +331,13 @@
                                 <span class="text-light">Analizuję domeny SEO...</span>
                             </div>
                         </div>
+
+                        <!-- Błędy analizy SEO – tuż przy przycisku (łatwiej znaleźć niż pod całą sekcją estymacji) -->
+                        <div id="seoError" class="alert alert-danger d-none" role="alert"></div>
                         
                         <!-- Results Table -->
                         <div id="seoResults" class="d-none">
+                            <div id="seoAhrefsHints" class="alert alert-warning mb-3 d-none" role="alert"></div>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="text-light mb-0">Wyniki analizy SEO</h6>
                                 <button class="btn btn-success btn-sm" onclick="exportSeoToCsv()">
@@ -350,7 +354,7 @@
                                             <th>Domains</th>
                                             <th>Backlinks</th>
                                             <th>TOP 3</th>
-                                            <th>TOP 10</th>
+                                            <th scope="col" title="Wiersze posortowane malejąco wg tej kolumny">TOP 10 <span class="text-secondary">↓</span></th>
                                             <th>Liczba URL w TOP 10</th>
                                             <th>Liczba URL w TOP 50</th>
                                             <th>Szacowany ruch</th>
@@ -369,7 +373,7 @@
                         </div>
                         
                         <!-- Estymacja 12-miesięczna -->
-                        <div id="estimationSection" class="d-none mt-4">
+                        <div id="estimationSection" class="d-none mt-4 quote-toc-section">
                             <hr class="border-secondary">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="text-light mb-0">
@@ -453,14 +457,19 @@
                                     <input type="number" class="form-control" id="forecastContentVolume" step="1" min="0" value="4">
                                 </div>
                                 <div class="col-md-2">
+                                    <label for="forecastNoEffectMonths" class="form-label text-light">Efekt SEO od mc</label>
+                                    <input type="number" class="form-control" id="forecastNoEffectMonths" step="1" min="0" max="6" value="2">
+                                    <div class="form-text text-muted small">Ile mc bez efektu (domyślnie 2)</div>
+                                </div>
+                                <div class="col-md-2">
                                     <label for="forecastLbRate" class="form-label text-light">LB rate (% / mc)</label>
                                     <input type="number" class="form-control" id="forecastLbRate" step="0.01" min="0" max="10" value="" placeholder="auto">
-                                    <div class="form-text text-muted small">Puste = auto z Domain Gap</div>
+                                    <div class="form-text text-muted small">Puste = 10% gdy gap &gt; 0, 0% bez gapu. Nadpisanie LB kosztu skaluje proporcjonalnie.</div>
                                 </div>
                                 <div class="col-md-2">
                                     <label for="forecastLbCost" class="form-label text-light">LB koszt (zł / mc)</label>
                                     <input type="number" class="form-control" id="forecastLbCost" step="100" min="0" value="" placeholder="auto">
-                                    <div class="form-text text-muted small">Puste = auto z Domain Gap</div>
+                                    <div class="form-text text-muted small">Puste = auto z Domain Gap (2 000 zł utrzymanie gdy gap &le; 0)</div>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end gap-2">
                                     <button class="btn btn-outline-info" id="loadSeasonalityBtn" onclick="loadSeasonalityFromAhrefs()">
@@ -553,9 +562,7 @@
                             <div class="mb-4 mt-4">
                                 <canvas id="trafficForecastChart" height="280"></canvas>
                             </div>
-                            <div class="mb-4">
-                                <canvas id="roiChart" height="280"></canvas>
-                            </div>
+                            <div id="tableTrafficForecast" class="mb-4"></div>
 
                             <hr class="border-secondary mt-4">
                             <h6 class="text-light mb-3">
@@ -564,12 +571,15 @@
                             <div class="mb-4">
                                 <canvas id="chartTop10Forecast" height="280"></canvas>
                             </div>
+                            <div id="tableTop10Forecast" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartTop3Forecast" height="280"></canvas>
                             </div>
+                            <div id="tableTop3Forecast" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartTrafficSenuto" height="280"></canvas>
                             </div>
+                            <div id="tableTrafficSenuto" class="mb-4"></div>
                             <div class="mb-4" id="chartTrafficGA4Wrapper">
                                 <canvas id="chartTrafficGA4" height="280"></canvas>
                                 <div id="chartTrafficGA4Placeholder" class="d-none text-center py-5" style="background: rgba(255,255,255,0.03); border-radius: 8px; min-height: 280px; display: flex; align-items: center; justify-content: center;">
@@ -579,13 +589,38 @@
                                     </div>
                                 </div>
                             </div>
+                            <div id="tableTrafficGA4" class="mb-4"></div>
+                            <div class="mb-4" id="chartTransactionsGA4Wrapper">
+                                <canvas id="chartTransactionsGA4" height="280"></canvas>
+                                <div id="chartTransactionsGA4Placeholder" class="d-none text-center py-5" style="background: rgba(255,255,255,0.03); border-radius: 8px; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                                    <div>
+                                        <i class="bi bi-cart-check" style="font-size: 2rem; color: #6c757d;"></i>
+                                        <p class="text-muted mt-2 mb-0">Wgraj CSV z GA4 (sesje + transakcje). Prognoza transakcji = scenariusze ruchu Prophet × CVR — jak przychód GA4.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="transactionsGA412mTotals" class="alert alert-secondary py-2 px-3 d-none mb-2 small text-light border-secondary"></div>
+                            <div id="tableTransactionsGA4" class="mb-4"></div>
+                            <div class="mb-4" id="chartRevenueGA4Wrapper">
+                                <canvas id="chartRevenueGA4" height="280"></canvas>
+                            </div>
+                            <div id="tableRevenueGA4" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartRevenueForecast" height="280"></canvas>
                             </div>
+                            <div id="tableRevenueForecast" class="mb-4"></div>
+                            <div class="mb-4">
+                                <canvas id="chartMonthlyPnl" height="280"></canvas>
+                            </div>
+                            <div id="tableMonthlyPnl" class="mb-4"></div>
+                            <div class="mb-4">
+                                <canvas id="roiChart" height="280"></canvas>
+                            </div>
+                            <div id="tableRoiChart" class="mb-4"></div>
                         </div>
 
                         <!-- Porównanie domen -->
-                        <div id="domainComparisonSection" class="d-none mt-4">
+                        <div id="domainComparisonSection" class="d-none mt-4 quote-toc-section">
                             <hr class="border-secondary">
                             <h6 class="text-light mb-3">
                                 <i class="bi bi-bar-chart"></i> Porównanie domen — metryki SEO
@@ -593,23 +628,191 @@
                             <div class="mb-4">
                                 <canvas id="chartDR" height="280"></canvas>
                             </div>
+                            <div id="tableDR" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartDomains" height="280"></canvas>
                             </div>
+                            <div id="tableDomains" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartUrlsTop10" height="280"></canvas>
                             </div>
+                            <div id="tableUrlsTop10" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartCompTop10" height="280"></canvas>
                             </div>
+                            <div id="tableCompTop10" class="mb-4"></div>
                             <div class="mb-4">
                                 <canvas id="chartCompTop3" height="280"></canvas>
                             </div>
+                            <div id="tableCompTop3" class="mb-4"></div>
+                            <div class="mb-4">
+                                <canvas id="chartEstimatedTraffic" height="280"></canvas>
+                            </div>
+                            <div id="tableEstimatedTraffic" class="mb-4"></div>
+                        </div>
                         </div>
 
-                        <!-- Error Messages -->
-                        <div id="seoError" class="alert alert-danger d-none" role="alert">
-                            <!-- Error messages will be shown here -->
+                        <!-- Wycena Google Ads — pod całą sekcją wykresów estymacji; zawsze widoczna w tej karcie -->
+                        <div id="googleAdsQuoteSection" class="mt-4 pt-2 border-secondary border-top quote-toc-section">
+                            <hr class="border-secondary">
+                            <h6 class="text-light mb-2">
+                                <i class="bi bi-google"></i> Wycena Google Ads
+                            </h6>
+                            <p class="text-muted small mb-3 mb-md-4">
+                                Opłata agencji za zarządzanie kampanią w zależności od <strong class="text-light">budżetu mediowego</strong>
+                                (w tabeli: opłata na kliknięcia, zł netto).
+                            </p>
+                            <div class="row g-3 align-items-end mb-3">
+                                <div class="col-md-5 col-lg-4">
+                                    <label for="googleAdsMediaBudget" class="form-label text-light mb-1">
+                                        Budżet mediowy — zł netto
+                                    </label>
+                                    <input type="number" class="form-control"
+                                        id="googleAdsMediaBudget" min="0" step="1"
+                                        placeholder="np. 10 000" autocomplete="off">
+                                    <div class="form-text text-muted small">Kwota przeznaczona na kliknięcia (media).</div>
+                                </div>
+                                <div class="col-md-7 col-lg-8">
+                                    <div class="rounded-3 border border-secondary py-3 px-3 mb-0"
+                                        style="background: rgba(15, 20, 32, 0.92);"
+                                        role="status">
+                                        <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
+                                            <span class="text-secondary">ADS — opłata za zarządzanie kampanią:</span>
+                                            <strong class="fs-4 text-warning" id="googleAdsFeeAmount">—</strong>
+                                            <span class="text-secondary">netto</span>
+                                        </div>
+                                        <div class="small" style="color: #cfd4dc;" id="googleAdsFeeExplanation">Podaj kwotę budżetu mediowego (netto).</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        <!-- Google Ads Planner — KW + sugerowany budżet -->
+                        <div id="googleAdsKeywordsPlanner" class="mt-4 pt-2 border-secondary border-top quote-toc-section">
+                            <h6 class="text-light mb-2">
+                                <i class="bi bi-search"></i> Słowa kluczowe i sugerowany budżet startowy
+                            </h6>
+                            <p class="text-muted small mb-3">
+                                Wygeneruj frazy z AI, wzbogać o CPC z Ahrefs lub uzupełnij ręcznie.
+                                Kalkulator wyliczy sugerowany budżet mediowy i prognozę miesięczną.
+                            </p>
+
+                            <!-- Opis biznesu (z Brief AI u góry) + przyciski -->
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small mb-1">Opis biznesu (z Brief marki AI)</label>
+                                    <div id="googleAdsBusinessDescriptionDisplay"
+                                        class="rounded border border-secondary px-3 py-2 small"
+                                        style="background: rgba(15, 20, 32, 0.6); min-height: 3.5rem;">
+                                        <span class="text-muted">Wygeneruj Brief AI u góry strony (Parametry wyceny → Brief AI).</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 d-flex flex-wrap align-items-start gap-2">
+                                    <button class="btn btn-sm btn-outline-info" id="googleAdsGenerateKwBtn">
+                                        <i class="bi bi-stars"></i> Generuj propozycje (AI)
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" id="googleAdsEnrichBtn">
+                                        <i class="bi bi-cloud-download"></i> Wzbogać o CPC z Ahrefs
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" id="googleAdsAddRowBtn">
+                                        <i class="bi bi-plus-lg"></i> Dodaj wiersz
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" id="googleAdsClearKwBtn">
+                                        <i class="bi bi-trash"></i> Wyczyść
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Tabela KW -->
+                            <div class="table-responsive mb-3">
+                                <table class="table table-hover table-sm" id="googleAdsKwTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Słowo kluczowe</th>
+                                            <th>Wolumen / mc</th>
+                                            <th>CPC (zł)</th>
+                                            <th>Intencja</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="googleAdsKwTableBody"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- Parametry -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label text-light small mb-1" for="googleAdsCtr">CTR (%)</label>
+                                    <input type="number" class="form-control form-control-sm" id="googleAdsCtr"
+                                        value="4" step="0.5" min="0.1" max="30">
+                                    <div class="form-text text-muted" style="font-size:0.7rem">Średni klikalność w Search</div>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label text-light small mb-1" for="googleAdsSafety">Wsp. bezpieczeństwa</label>
+                                    <input type="number" class="form-control form-control-sm" id="googleAdsSafety"
+                                        value="1.2" step="0.1" min="1" max="3">
+                                    <div class="form-text text-muted" style="font-size:0.7rem">Mnożnik budżetu (1.2 = +20%)</div>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label text-light small mb-1" for="googleAdsManualClicks">Cel kliknięć / mc</label>
+                                    <input type="number" class="form-control form-control-sm" id="googleAdsManualClicks"
+                                        placeholder="auto" min="0" step="100">
+                                    <div class="form-text text-muted" style="font-size:0.7rem">Puste = z wolumenu × CTR</div>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label text-light small mb-1" for="googleAdsUsdPln">Kurs USD/PLN</label>
+                                    <input type="number" class="form-control form-control-sm" id="googleAdsUsdPln"
+                                        value="3.64" step="0.01" min="1" max="10">
+                                    <div class="form-text text-muted" style="font-size:0.7rem">Do przeliczenia CPC z Ahrefs</div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <div class="form-text text-secondary small mt-md-4">
+                                        CVR / AOV / marża brane z <strong class="text-light">sekcji Estymacja 12mc</strong> (fallback: 1,8% / 1 000 zł / 15%).
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Kampania produktowa (Shopping/PMax) -->
+                            <div class="rounded-3 border border-secondary py-3 px-3 mb-3"
+                                style="background: rgba(15, 20, 32, 0.55);">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="googleAdsProductEnabled">
+                                    <label class="form-check-label text-light fw-semibold" for="googleAdsProductEnabled">
+                                        Kampania produktowa (Shopping / PMax)
+                                    </label>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label text-light small mb-1" for="googleAdsProductRevenue">Docelowy przychód / mc (zł)</label>
+                                        <input type="number" class="form-control form-control-sm" id="googleAdsProductRevenue"
+                                            placeholder="np. 40000" min="0" step="100">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label text-light small mb-1" for="googleAdsProductRoas">Docelowy ROAS (×)</label>
+                                        <input type="number" class="form-control form-control-sm" id="googleAdsProductRoas"
+                                            value="4" min="0.1" step="0.1">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label text-light small mb-1" for="googleAdsProductCpc">CPC Shopping (zł)</label>
+                                        <input type="number" class="form-control form-control-sm" id="googleAdsProductCpc"
+                                            placeholder="np. 0.80" min="0" step="0.01">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label text-light small mb-1" for="googleAdsProductCvr">CVR Shopping (%)</label>
+                                        <input type="number" class="form-control form-control-sm" id="googleAdsProductCvr"
+                                            placeholder="np. 2.0" min="0" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="form-text text-secondary small mt-2">
+                                    Budżet produktowy = przychód ÷ ROAS. Opłata agencji liczona od <strong class="text-light">sumy</strong> (Search + Produktowa).
+                                </div>
+                            </div>
+
+                            <!-- Boks wyniku -->
+                            <div class="rounded-3 border border-secondary py-3 px-3 mb-3"
+                                style="background: rgba(15, 20, 32, 0.92);" id="googleAdsPlannerSummary">
+                                <div class="text-secondary small py-2">Uzupełnij CPC i wolumen (lub wygeneruj z AI + Senuto), aby zobaczyć prognozę.</div>
+                            </div>
+                        </div>
                         </div>
                     </div>
                 </div>
@@ -710,6 +913,27 @@
         </div>
     </div>
 
+    <!-- Mobilny spis treści -->
+    <button type="button" class="quote-toc-fab d-xl-none" id="quoteTocFab"
+        data-bs-toggle="offcanvas" data-bs-target="#quoteTocOffcanvas"
+        aria-controls="quoteTocOffcanvas" title="Spis treści">
+        <i class="bi bi-list-ul"></i>
+        <span class="quote-toc-fab-label">Spis</span>
+    </button>
+
+    <div class="offcanvas offcanvas-start quote-toc-offcanvas" tabindex="-1"
+        id="quoteTocOffcanvas" aria-labelledby="quoteTocOffcanvasLabel">
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title text-light" id="quoteTocOffcanvasLabel">
+                <i class="bi bi-signpost-split me-2"></i>Spis treści
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Zamknij"></button>
+        </div>
+        <div class="offcanvas-body p-0">
+            <nav id="quoteTocList" class="quote-toc-nav" aria-label="Nawigacja sekcji wyceny"></nav>
+        </div>
+    </div>
+
     <!-- Modal: AI Keywords Generator -->
     <div class="modal fade" id="aiKeywordsModal" tabindex="-1" aria-labelledby="aiKeywordsModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -720,9 +944,12 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="aiClientDescription" class="form-label">Opisz biznes klienta (2-3 zdania)</label>
-                        <textarea class="form-control" id="aiClientDescription" rows="4"
-                            placeholder="np. Klient prowadzi sklep internetowy z walizkami i galanterią podróżną. Sprzedaje walizki, torby, plecaki i akcesoria podróżne marek premium."></textarea>
+                        <label class="form-label text-secondary small">Opis biznesu (z Brief marki AI)</label>
+                        <div id="aiClientDescriptionDisplay"
+                            class="rounded border border-secondary px-3 py-2 small"
+                            style="background: rgba(15, 20, 32, 0.6); min-height: 5rem; max-height: 12rem; overflow-y: auto;">
+                            <span class="text-muted">Wygeneruj Brief AI u góry strony (Parametry wyceny → Brief AI).</span>
+                        </div>
                     </div>
                     <div id="aiKeywordsStatus" class="d-none">
                         <div class="d-flex align-items-center gap-2">
@@ -743,8 +970,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <script src="{{ url_for('static', filename='js/quote_editor.js') }}?v=2"></script>
-    <script src="{{ url_for('static', filename='js/seo_analysis.js') }}?v=3"></script>
-    <script src="{{ url_for('static', filename='js/forecast.js') }}?v=4"></script>
+    <script src="{{ url_for('static', filename='js/chart_clipboard.js') }}?v=3"></script>
+    <script src="{{ url_for('static', filename='js/quote_editor.js') }}?v=4"></script>
+    <script src="{{ url_for('static', filename='js/seo_analysis.js') }}?v=5"></script>
+    <script src="{{ url_for('static', filename='js/forecast.js') }}?v=9"></script>
+    <script src="{{ url_for('static', filename='js/google_ads_calculator.js') }}?v=3"></script>
+    <script src="{{ url_for('static', filename='js/google_ads_compute.js') }}?v=1"></script>
+    <script src="{{ url_for('static', filename='js/google_ads_planner.js') }}?v=7"></script>
+    <script src="{{ url_for('static', filename='js/quote_toc.js') }}?v=1"></script>
 </body>
 </html>
