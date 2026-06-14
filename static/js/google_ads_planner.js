@@ -17,6 +17,12 @@
         });
     };
 
+    const numOrNull = (raw) => {
+        if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+        const n = parseFloat(raw);
+        return isNaN(n) ? null : n;
+    };
+
     function getQuoteId() {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
@@ -45,10 +51,10 @@
             usd_pln_rate: parseFloat(document.getElementById('googleAdsUsdPln')?.value) || 3.64,
             media_budget: mediaRaw === '' || isNaN(mediaParsed) ? null : mediaParsed,
             product_enabled: !!document.getElementById('googleAdsProductEnabled')?.checked,
-            product_target_revenue: parseFloat(document.getElementById('googleAdsProductRevenue')?.value) || null,
-            product_target_roas: parseFloat(document.getElementById('googleAdsProductRoas')?.value) || null,
-            product_cpc: parseFloat(document.getElementById('googleAdsProductCpc')?.value) || null,
-            product_cvr: parseFloat(document.getElementById('googleAdsProductCvr')?.value) || null,
+            product_target_revenue: numOrNull(document.getElementById('googleAdsProductRevenue')?.value),
+            product_target_roas: numOrNull(document.getElementById('googleAdsProductRoas')?.value),
+            product_cpc: numOrNull(document.getElementById('googleAdsProductCpc')?.value),
+            product_cvr: numOrNull(document.getElementById('googleAdsProductCvr')?.value),
         };
     }
 
@@ -275,6 +281,11 @@
 
         const searchConversions = clicks * cvr;
         const searchRevenue = searchConversions * aov;
+
+        if (!window.GoogleAdsCompute) {
+            console.error('GoogleAdsCompute module not loaded — pomijam przeliczenie planera.');
+            return;
+        }
 
         const product = window.GoogleAdsCompute.computeProductCampaign({
             enabled: !!document.getElementById('googleAdsProductEnabled')?.checked,
