@@ -8,7 +8,7 @@ import asyncio
 import requests as http_requests
 
 # Import models and business logic
-from models import db, Pricelist, Quote, QuoteItem, MonthlyDistribution, DefaultTask, Competitor, SeoAnalysis, ForecastSettings
+from models import db, Pricelist, Quote, QuoteItem, MonthlyDistribution, DefaultTask, Competitor, SeoAnalysis, ForecastSettings, GoogleAdsSettings
 from business_logic import BusinessLogic
 from excel_export import ExcelExporter
 from competitors_logic import competitors_logic
@@ -39,6 +39,20 @@ with app.app_context():
         _conn.commit()
     except sqlite3.OperationalError:
         pass
+    for _col_stmt in (
+        'ALTER TABLE forecast_settings ADD COLUMN prophet_transactions_forecast_json TEXT',
+        'ALTER TABLE forecast_settings ADD COLUMN prophet_transactions_fit_json TEXT',
+        'ALTER TABLE google_ads_settings ADD COLUMN product_enabled BOOLEAN DEFAULT 0',
+        'ALTER TABLE google_ads_settings ADD COLUMN product_target_revenue FLOAT',
+        'ALTER TABLE google_ads_settings ADD COLUMN product_target_roas FLOAT DEFAULT 4.0',
+        'ALTER TABLE google_ads_settings ADD COLUMN product_cpc FLOAT',
+        'ALTER TABLE google_ads_settings ADD COLUMN product_cvr FLOAT',
+    ):
+        try:
+            _conn.execute(_col_stmt)
+            _conn.commit()
+        except sqlite3.OperationalError:
+            pass
     _conn.close()
 
     # Initialize pricelist if empty
@@ -268,6 +282,8 @@ class QuotesAPI(Resource):
         
         # Delete forecast settings
         ForecastSettings.query.filter_by(quote_id=quote_id).delete()
+
+        GoogleAdsSettings.query.filter_by(quote_id=quote_id).delete()
         
         db.session.delete(quote)
         db.session.commit()
@@ -483,7 +499,8 @@ class SeoAnalysisAPI(Resource):
         return {
             'seo_results': results_data,
             'averages': averages,
-            'count': len(results_data)
+            'count': len(results_data),
+            'warnings': seo_analysis_logic.integration_warnings(results_data),
         }
     
     def post(self, quote_id):
@@ -526,7 +543,8 @@ class SeoAnalysisAPI(Resource):
                 'message': f'Analiza SEO zakończona. Przeanalizowano {len(results)} domen.',
                 'seo_results': results,
                 'averages': averages,
-                'count': len(results)
+                'count': len(results),
+                'warnings': seo_analysis_logic.integration_warnings(results),
             }
             
         except Exception as e:
@@ -559,6 +577,15 @@ class SeoAnalysisExportAPI(Resource):
         else:
             return {'error': 'Błąd podczas eksportu CSV'}, 500
 
+def _status_for_ahrefs_error(exc: AhrefsApiError) -> int:
+    """Mapuj komunikat AhrefsApiError na sensowny HTTP status dla API Flask."""
+    msg = str(exc)
+    for code in (400, 401, 403, 429):
+        if f"HTTP {code}" in msg:
+            return code
+    return 502
+
+
 class ForecastSeasonalityAPI(Resource):
     def get(self, quote_id):
         """Pobierz 12 mnożników sezonowości z Ahrefs metrics-history dla lidera."""
@@ -576,7 +603,7 @@ class ForecastSeasonalityAPI(Resource):
                 'history': history,
             }
         except AhrefsApiError as e:
-            return {'error': f'Ahrefs API error: {str(e)}'}, 502
+            return {'error': f'Ahrefs API error: {str(e)}'}, _status_for_ahrefs_error(e)
 
 
 class ForecastAPI(Resource):
@@ -606,9 +633,39 @@ class ForecastAPI(Resource):
         except (json.JSONDecodeError, TypeError):
             result['prophet_forecast'] = None
         try:
+            result['ga4_history'] = json.loads(fs.ga4_data_json) if fs.ga4_data_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['ga4_history'] = None
+        try:
             result['ga4_seasonality'] = json.loads(fs.ga4_seasonality_json) if fs.ga4_seasonality_json else None
         except (json.JSONDecodeError, TypeError):
             result['ga4_seasonality'] = None
+        try:
+            result['prophet_revenue_forecast'] = json.loads(fs.prophet_revenue_forecast_json) if fs.prophet_revenue_forecast_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['prophet_revenue_forecast'] = None
+        try:
+            result['prophet_fit'] = json.loads(fs.prophet_fit_json) if fs.prophet_fit_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['prophet_fit'] = None
+        try:
+            result['prophet_revenue_fit'] = json.loads(fs.prophet_revenue_fit_json) if fs.prophet_revenue_fit_json else None
+        except (json.JSONDecodeError, TypeError):
+            result['prophet_revenue_fit'] = None
+        try:
+            result['prophet_transactions_forecast'] = (
+                json.loads(fs.prophet_transactions_forecast_json)
+                if getattr(fs, 'prophet_transactions_forecast_json', None) else None
+            )
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            result['prophet_transactions_forecast'] = None
+        try:
+            result['prophet_transactions_fit'] = (
+                json.loads(fs.prophet_transactions_fit_json)
+                if getattr(fs, 'prophet_transactions_fit_json', None) else None
+            )
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            result['prophet_transactions_fit'] = None
         return {'forecast_settings': result}
 
     def post(self, quote_id):
@@ -628,6 +685,7 @@ class ForecastAPI(Resource):
         fs.margin = float(data.get('margin', fs.margin or 0.15))
         fs.fixed_seo_budget = float(data.get('fixed_seo_budget', fs.fixed_seo_budget or 0))
         fs.monthly_content_volume = int(data.get('monthly_content_volume', fs.monthly_content_volume or 0))
+        fs.no_effect_months = int(data.get('no_effect_months', fs.no_effect_months if fs.no_effect_months is not None else 2))
 
         lb_rate = data.get('lb_rate_override')
         fs.lb_rate_override = float(lb_rate) if lb_rate is not None else None
@@ -680,7 +738,23 @@ class GA4UploadAPI(Resource):
         fs.ga4_csv_filename = file.filename
         fs.ga4_data_json = json.dumps(prophet_result.get('history', []))
         fs.prophet_forecast_json = json.dumps(prophet_result.get('forecast', []))
-        fs.ga4_seasonality_json = json.dumps(prophet_result.get('seasonality', [1.0] * 12))
+
+        revenue_fc = prophet_result.get('revenue_forecast')
+        fs.prophet_revenue_forecast_json = json.dumps(revenue_fc) if revenue_fc else None
+
+        traffic_fit = prophet_result.get('prophet_fit')
+        fs.prophet_fit_json = json.dumps(traffic_fit) if traffic_fit else None
+        revenue_fit = prophet_result.get('revenue_fit')
+        fs.prophet_revenue_fit_json = json.dumps(revenue_fit) if revenue_fit else None
+
+        tx_fc = prophet_result.get('transactions_forecast')
+        fs.prophet_transactions_forecast_json = json.dumps(tx_fc) if tx_fc else None
+        tx_fit = prophet_result.get('transactions_fit')
+        fs.prophet_transactions_fit_json = json.dumps(tx_fit) if tx_fit else None
+
+        seasonality = prophet_result.get('seasonality')
+        if seasonality and len(seasonality) == 12:
+            fs.ga4_seasonality_json = json.dumps(seasonality)
 
         if prophet_result.get('ga4_metrics', {}).get('avg_conversion_rate'):
             fs.conversion_rate = prophet_result['ga4_metrics']['avg_conversion_rate']
@@ -694,9 +768,17 @@ class GA4UploadAPI(Resource):
             'filename': file.filename,
             'data_months': prophet_result.get('data_months', 0),
             'forecast_months': len(prophet_result.get('forecast', [])),
-            'seasonality': prophet_result.get('seasonality', []),
+            'seasonality': seasonality,
             'ga4_metrics': prophet_result.get('ga4_metrics', {}),
             'prophet_forecast': prophet_result.get('forecast', []),
+            'ga4_history': prophet_result.get('history', []),
+            'revenue_forecast': revenue_fc,
+            'prophet_fit': prophet_result.get('prophet_fit'),
+            'revenue_fit': prophet_result.get('revenue_fit'),
+            'transactions_forecast': prophet_result.get('transactions_forecast'),
+            'transactions_fit': prophet_result.get('transactions_fit'),
+            'granularity': prophet_result.get('granularity'),
+            'n_observations': prophet_result.get('n_observations', 0),
         }
 
     def delete(self, quote_id):
@@ -707,6 +789,11 @@ class GA4UploadAPI(Resource):
             fs.ga4_csv_filename = None
             fs.ga4_data_json = None
             fs.prophet_forecast_json = None
+            fs.prophet_revenue_forecast_json = None
+            fs.prophet_fit_json = None
+            fs.prophet_revenue_fit_json = None
+            fs.prophet_transactions_forecast_json = None
+            fs.prophet_transactions_fit_json = None
             fs.ga4_seasonality_json = None
             db.session.commit()
         return {'message': 'GA4 data removed'}
@@ -745,6 +832,113 @@ class KeywordsGenerateAPI(Resource):
             return {'keywords': keywords}
         except Exception as e:
             return {'error': f'Błąd Gemini API: {str(e)}'}, 500
+
+
+class KeywordsEnrichAPI(Resource):
+    """Wzbogacanie listy słów kluczowych o wolumen i CPC z Ahrefs Keywords Explorer."""
+
+    def post(self):
+        data = request.get_json() or {}
+        keywords = data.get('keywords') or []
+
+        if not isinstance(keywords, list) or not keywords:
+            return {'error': 'Podaj listę słów kluczowych (keywords: [...])'}, 400
+
+        cleaned = [str(kw).strip() for kw in keywords if str(kw).strip()]
+        if not cleaned:
+            return {'error': 'Lista słów kluczowych jest pusta'}, 400
+
+        if len(cleaned) > 500:
+            return {'error': f'Maksymalnie 500 fraz (otrzymano {len(cleaned)})'}, 400
+
+        warnings = []
+
+        if not ahrefs_api_client.enabled:
+            warnings.append('Ahrefs jest wyłączony — CPC i wolumen nie zostaną pobrane.')
+            results = [
+                {"keyword": kw, "monthly_searches": None, "cpc": None, "difficulty": None, "intent": None, "source": "unknown"}
+                for kw in cleaned
+            ]
+            return {'keywords': results, 'warnings': warnings}
+
+        usd_pln = data.get('usd_pln_rate')
+        kwargs = {}
+        if usd_pln and isinstance(usd_pln, (int, float)) and usd_pln > 0:
+            kwargs['usd_pln_rate'] = float(usd_pln)
+
+        try:
+            results = ahrefs_api_client.get_keywords_metrics(cleaned, country="pl", **kwargs)
+        except AhrefsApiError as exc:
+            warnings.append(f'Ahrefs Keywords Explorer: {exc}')
+            results = [
+                {"keyword": kw, "monthly_searches": None, "cpc": None, "difficulty": None, "intent": None, "source": "unknown"}
+                for kw in cleaned
+            ]
+
+        unknown_count = sum(1 for r in results if r.get("source") == "unknown")
+        if unknown_count:
+            warnings.append(
+                f'Brak danych z Ahrefs dla {unknown_count}/{len(results)} fraz — uzupełnij CPC i wolumen ręcznie.'
+            )
+
+        return {'keywords': results, 'warnings': warnings}
+
+
+class GoogleAdsAPI(Resource):
+    """Zapis i odczyt planera Google Ads dla wyceny."""
+
+    def get(self, quote_id):
+        Quote.query.get_or_404(quote_id)
+        settings = GoogleAdsSettings.query.filter_by(quote_id=quote_id).first()
+        if not settings:
+            return {'google_ads_settings': None}
+        return {'google_ads_settings': settings.to_dict()}
+
+    def post(self, quote_id):
+        Quote.query.get_or_404(quote_id)
+        data = request.get_json() or {}
+
+        settings = GoogleAdsSettings.query.filter_by(quote_id=quote_id).first()
+        if not settings:
+            settings = GoogleAdsSettings(quote_id=quote_id)
+            db.session.add(settings)
+
+        if 'media_budget' in data:
+            mb = data.get('media_budget')
+            settings.media_budget = float(mb) if mb is not None and mb != '' else None
+
+        if 'business_description' in data:
+            settings.business_description = str(data.get('business_description') or '')
+
+        if 'ctr' in data:
+            settings.ctr = float(data.get('ctr') or 4)
+
+        if 'safety_factor' in data:
+            settings.safety_factor = float(data.get('safety_factor') or 1.2)
+
+        if 'manual_clicks' in data:
+            mc = data.get('manual_clicks')
+            settings.manual_clicks = float(mc) if mc is not None and mc != '' else None
+
+        if 'usd_pln_rate' in data:
+            settings.usd_pln_rate = float(data.get('usd_pln_rate') or 3.64)
+
+        if 'product_enabled' in data:
+            settings.product_enabled = bool(data.get('product_enabled'))
+
+        for _f in ('product_target_revenue', 'product_target_roas', 'product_cpc', 'product_cvr'):
+            if _f in data:
+                _v = data.get(_f)
+                setattr(settings, _f, float(_v) if _v is not None and _v != '' else None)
+
+        keywords = data.get('keywords')
+        if keywords is not None:
+            if not isinstance(keywords, list):
+                return {'error': 'keywords musi być listą'}, 400
+            settings.keywords_json = json.dumps(keywords, ensure_ascii=False)
+
+        db.session.commit()
+        return {'message': 'Google Ads settings saved', 'google_ads_settings': settings.to_dict()}
 
 
 class BrandBriefAPI(Resource):
@@ -1084,6 +1278,8 @@ api.add_resource(ForecastSeasonalityAPI, '/api/quotes/<int:quote_id>/forecast/se
 api.add_resource(ForecastAPI, '/api/quotes/<int:quote_id>/forecast')
 api.add_resource(GA4UploadAPI, '/api/quotes/<int:quote_id>/forecast/ga4-upload')
 api.add_resource(KeywordsGenerateAPI, '/api/keywords/generate')
+api.add_resource(KeywordsEnrichAPI, '/api/keywords/enrich')
+api.add_resource(GoogleAdsAPI, '/api/quotes/<int:quote_id>/google-ads')
 api.add_resource(BrandBriefAPI, '/api/brand-brief/generate')
 api.add_resource(EstimationSuggestAPI, '/api/estimation/suggest')
 api.add_resource(QuoteBriefAPI, '/api/quotes/<int:quote_id>/brief')
