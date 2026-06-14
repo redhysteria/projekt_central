@@ -315,9 +315,11 @@
         const conversions = summary.combinedConversions;
         const revenue = summary.combinedRevenue;
 
+        // Górne pole „budżet mediowy" pokazuje budżet ŁĄCZNY (Search + Produktowy),
+        // dzięki czemu samodzielny widżet opłaty liczy ją od tej samej sumy co podsumowanie.
         const mainInput = document.getElementById('googleAdsMediaBudget');
-        if (mainInput && suggestedBudget > 0) {
-            mainInput.value = suggestedBudget;
+        if (mainInput && summary.combinedBudget > 0) {
+            mainInput.value = summary.combinedBudget;
             mainInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
@@ -330,6 +332,11 @@
                 <div class="col-6 col-md-3">
                     <div class="small text-secondary">Budżet produktowy / mc</div>
                     <div class="fw-bold text-warning">${fmtPl(product.budget)} zł</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="small text-secondary">Implik. przychód produktowy</div>
+                    <div class="fw-bold">${fmtPl(Math.round(product.impliedRevenue))} zł</div>
+                    <div class="form-text text-secondary" style="font-size:0.7rem">kontrola realności (kliki × CVR × AOV)</div>
                 </div>` : '';
 
         el.innerHTML = hasData ? `
