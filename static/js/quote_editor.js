@@ -312,7 +312,8 @@ async function updateItemField(itemId, fieldName, value) {
             total_price: item.total_price,
             client_units: item.client_units,
             client_price: item.client_price,
-            client_month: item.client_month
+            client_month: item.client_month,
+            client_months: item.client_months
         };
 
         const response = await fetch(`/api/quotes/${currentQuote.id}/items/${itemId}`, {
