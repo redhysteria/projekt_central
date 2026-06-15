@@ -133,40 +133,6 @@ class BusinessLogic:
         """Rozkład jest pochodną client_months — materializacja nieużywana."""
         return
     
-    def _parse_client_month(self, client_month):
-        """Parse client month string and return list of month numbers (1-12)"""
-        if not client_month:
-            return []
-        
-        months = []
-        
-        # Handle "Miesiąc XX" format
-        single_month_match = re.match(r'Miesiąc (\d{1,2})', client_month)
-        if single_month_match:
-            month_num = int(single_month_match.group(1))
-            if 1 <= month_num <= 12:
-                months.append(month_num)
-            return months
-        
-        # Handle "Od Miesiąc XX" format
-        from_month_match = re.match(r'Od Miesiąc (\d{1,2})', client_month)
-        if from_month_match:
-            start_month = int(from_month_match.group(1))
-            if 1 <= start_month <= 12:
-                months = list(range(start_month, 13))  # From start_month to 12
-            return months
-        
-        # Handle "Miesiąc XX-YY" format (for future expansion)
-        range_match = re.match(r'Miesiąc (\d{1,2})-(\d{1,2})', client_month)
-        if range_match:
-            start_month = int(range_match.group(1))
-            end_month = int(range_match.group(2))
-            if 1 <= start_month <= 12 and 1 <= end_month <= 12 and start_month <= end_month:
-                months = list(range(start_month, end_month + 1))
-            return months
-        
-        return months
-    
     def calculate_monthly_totals(self, quote_id):
         """Sumy miesięczne z client_months (pełna client_price w każdym miesiącu)."""
         items = QuoteItem.query.filter_by(quote_id=quote_id).all()
@@ -176,14 +142,3 @@ class BusinessLogic:
                 monthly_totals[m] += (item.client_price or 0)
         return monthly_totals
     
-    def calculate_item_totals(self, quote_id):
-        """Calculate total for each item (sum of monthly distributions)"""
-        items = QuoteItem.query.filter_by(quote_id=quote_id).all()
-        item_totals = {}
-        
-        for item in items:
-            distributions = MonthlyDistribution.query.filter_by(quote_item_id=item.id).all()
-            total = sum(dist.amount for dist in distributions)
-            item_totals[item.id] = total
-        
-        return item_totals
