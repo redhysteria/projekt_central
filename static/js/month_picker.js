@@ -37,5 +37,64 @@
         return Array.from(set).sort((a, b) => a - b);
     }
 
-    return { csvToMonths, monthsToCsv, toggleMonth, fillRange };
+    /**
+     * Rysuje pigułki w kontenerze. Klik = toggle; shift-klik = zakres od ostatniej kotwicy.
+     * @param {HTMLElement} container
+     * @param {string} csv  aktualny CSV miesięcy
+     * @param {{disabled?:boolean, onChange?:(csv:string)=>void}} opts
+     */
+    function renderMonthPicker(container, csv, opts) {
+        opts = opts || {};
+        let months = csvToMonths(csv);
+        let anchor = null;
+
+        function paint() {
+            container.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'd-flex flex-wrap gap-1 align-items-center';
+            for (let m = 1; m <= 12; m++) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                const on = months.indexOf(m) !== -1;
+                b.className = 'btn btn-sm ' + (on ? 'btn-primary' : 'btn-outline-secondary');
+                b.style.minWidth = '34px';
+                b.style.padding = '1px 6px';
+                b.textContent = String(m).padStart(2, '0');
+                if (opts.disabled) {
+                    b.disabled = true;
+                } else {
+                    b.addEventListener('click', (ev) => {
+                        if (ev.shiftKey && anchor) {
+                            months = fillRange(months, anchor, m);
+                        } else {
+                            months = toggleMonth(months, m);
+                            anchor = m;
+                        }
+                        if (opts.onChange) opts.onChange(monthsToCsv(months));
+                        paint();
+                    });
+                }
+                wrap.appendChild(b);
+            }
+            if (!opts.disabled) {
+                const clr = document.createElement('button');
+                clr.type = 'button';
+                clr.className = 'btn btn-sm btn-link text-secondary p-0 ms-1';
+                clr.title = 'Wyczyść';
+                clr.textContent = '✕';
+                clr.addEventListener('click', () => {
+                    months = [];
+                    anchor = null;
+                    if (opts.onChange) opts.onChange('');
+                    paint();
+                });
+                wrap.appendChild(clr);
+            }
+            container.appendChild(wrap);
+        }
+
+        paint();
+    }
+
+    return { csvToMonths, monthsToCsv, toggleMonth, fillRange, renderMonthPicker };
 }));
