@@ -1122,84 +1122,29 @@ function hideCompetitorsResults() {
 
 // Modal Sliders Initialization
 function initModalSliders() {
-    // Linki modal sliders
-    const linkiFrom = document.getElementById('linkiFromMonth');
-    const linkiTo = document.getElementById('linkiToMonth');
-    
-    if (linkiFrom && linkiTo) {
-        linkiFrom.addEventListener('input', () => updateLinkiMonthRange());
-        linkiTo.addEventListener('input', () => updateLinkiMonthRange());
-    }
-    
-    // Content modal sliders
-    const contentFrom = document.getElementById('contentFromMonth');
-    const contentTo = document.getElementById('contentToMonth');
-    
-    if (contentFrom && contentTo) {
-        contentFrom.addEventListener('input', () => updateContentMonthRange());
-        contentTo.addEventListener('input', () => updateContentMonthRange());
-    }
-    
+    window._linkiMonthsCsv = '2,3,4,5,6,7,8,9,10,11,12';
+    window._contentMonthsCsv = '2';
+    const lp = document.getElementById('linkiMonthPicker');
+    if (lp) MonthPicker.renderMonthPicker(lp, window._linkiMonthsCsv, {
+        onChange: (csv) => { window._linkiMonthsCsv = csv; },
+    });
+    const cp = document.getElementById('contentMonthPicker');
+    if (cp) MonthPicker.renderMonthPicker(cp, window._contentMonthsCsv, {
+        onChange: (csv) => { window._contentMonthsCsv = csv; },
+    });
+
     // Content calculation listeners
     const contentChars = document.getElementById('contentChars');
     const contentRate = document.getElementById('contentRate');
     const contentMultiplier = document.getElementById('contentMultiplier');
     const contentNumTexts = document.getElementById('contentNumTexts');
-    
+
     if (contentChars && contentRate && contentMultiplier && contentNumTexts) {
         contentChars.addEventListener('input', updateContentPrice);
         contentRate.addEventListener('input', updateContentPrice);
         contentMultiplier.addEventListener('input', updateContentPrice);
         contentNumTexts.addEventListener('input', updateContentPrice);
     }
-}
-
-function updateLinkiMonthRange() {
-    const fromMonth = parseInt(document.getElementById('linkiFromMonth').value);
-    const toMonth = parseInt(document.getElementById('linkiToMonth').value);
-    
-    // Ensure from <= to
-    if (fromMonth > toMonth) {
-        document.getElementById('linkiToMonth').value = fromMonth;
-    }
-    
-    const fromStr = fromMonth.toString().padStart(2, '0');
-    const toStr = parseInt(document.getElementById('linkiToMonth').value).toString().padStart(2, '0');
-    
-    document.getElementById('linkiFromMonthValue').textContent = fromStr;
-    document.getElementById('linkiToMonthValue').textContent = toStr;
-    
-    let displayText;
-    if (fromMonth === parseInt(document.getElementById('linkiToMonth').value)) {
-        displayText = `Miesiąc ${fromStr}`;
-    } else {
-        displayText = `Od Miesiąc ${fromStr} do Miesiąc ${toStr}`;
-    }
-    document.getElementById('linkiMonthDisplay').textContent = displayText;
-}
-
-function updateContentMonthRange() {
-    const fromMonth = parseInt(document.getElementById('contentFromMonth').value);
-    const toMonth = parseInt(document.getElementById('contentToMonth').value);
-    
-    // Ensure from <= to
-    if (fromMonth > toMonth) {
-        document.getElementById('contentToMonth').value = fromMonth;
-    }
-    
-    const fromStr = fromMonth.toString().padStart(2, '0');
-    const toStr = parseInt(document.getElementById('contentToMonth').value).toString().padStart(2, '0');
-    
-    document.getElementById('contentFromMonthValue').textContent = fromStr;
-    document.getElementById('contentToMonthValue').textContent = toStr;
-    
-    let displayText;
-    if (fromMonth === parseInt(document.getElementById('contentToMonth').value)) {
-        displayText = `Miesiąc ${fromStr}`;
-    } else {
-        displayText = `Od Miesiąc ${fromStr} do Miesiąc ${toStr}`;
-    }
-    document.getElementById('contentMonthDisplay').textContent = displayText;
 }
 
 function updateContentPrice() {
@@ -1210,28 +1155,6 @@ function updateContentPrice() {
     
     const totalPrice = chars * rate * multiplier * numTexts;
     document.getElementById('contentTotalPrice').textContent = formatCurrency(totalPrice);
-}
-
-function getLinkiMonthValue() {
-    const fromMonth = parseInt(document.getElementById('linkiFromMonth').value);
-    const toMonth = parseInt(document.getElementById('linkiToMonth').value);
-    
-    if (fromMonth === toMonth) {
-        return `Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    } else {
-        return `Od Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    }
-}
-
-function getContentMonthValue() {
-    const fromMonth = parseInt(document.getElementById('contentFromMonth').value);
-    const toMonth = parseInt(document.getElementById('contentToMonth').value);
-    
-    if (fromMonth === toMonth) {
-        return `Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    } else {
-        return `Od Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    }
 }
 
 // Modal Functions
@@ -1260,8 +1183,6 @@ async function saveLinkiTasks() {
         return;
     }
     
-    const clientMonth = getLinkiMonthValue();
-    
     // LB marża (15%)
     const marzaPrice = budget * 0.15;
     const marzaData = {
@@ -1273,9 +1194,9 @@ async function saveLinkiTasks() {
         total_price: marzaPrice,
         client_units: marzaPrice / 300,
         client_price: marzaPrice,
-        client_month: clientMonth
+        client_months: window._linkiMonthsCsv || ''
     };
-    
+
     // LB budżet mediowy (85%)
     const budzetPrice = budget * 0.85;
     const budzetData = {
@@ -1287,7 +1208,7 @@ async function saveLinkiTasks() {
         total_price: budzetPrice,
         client_units: budzetPrice / 300,
         client_price: budzetPrice,
-        client_month: clientMonth
+        client_months: window._linkiMonthsCsv || ''
     };
     
     try {
@@ -1339,8 +1260,7 @@ async function saveContentTask() {
     }
     
     const totalPrice = chars * rate * multiplier * numTexts;
-    const clientMonth = getContentMonthValue();
-    
+
     const taskData = {
         task_name: `Napisanie treści (${multiplier}x stawka za 1000 znaków)`,
         specialist_type: 'Copywriter Content',
@@ -1350,7 +1270,7 @@ async function saveContentTask() {
         total_price: totalPrice,
         client_units: chars * numTexts,
         client_price: totalPrice,
-        client_month: clientMonth
+        client_months: window._contentMonthsCsv || ''
     };
     
     try {
