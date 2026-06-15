@@ -1,7 +1,7 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
-from models import Quote, QuoteItem, MonthlyDistribution
+from models import Quote, QuoteItem
 from business_logic import BusinessLogic
 from month_utils import parse_months_csv
 
