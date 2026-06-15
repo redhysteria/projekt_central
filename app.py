@@ -17,6 +17,7 @@ from forecast_logic import extract_client_domain, pick_market_leader, calculate_
 from ahrefs_api_client import ahrefs_api_client, AhrefsApiError
 from ga4_prophet import parse_ga4_csv, run_prophet_forecast
 from config import config
+from month_utils import parse_months_csv, months_to_csv, months_to_label, client_month_label_to_csv
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quotes.db'
@@ -190,13 +191,7 @@ class QuotesAPI(Resource):
         if quote_id:
             quote = Quote.query.get_or_404(quote_id)
             items = QuoteItem.query.filter_by(quote_id=quote_id).all()
-            monthly_dist = {}
-            for item in items:
-                monthly_dist[item.id] = {
-                    dist.month_number: dist.amount 
-                    for dist in MonthlyDistribution.query.filter_by(quote_item_id=item.id)
-                }
-            
+
             return {
                 'quote': {
                     'id': quote.id,
@@ -223,8 +218,12 @@ class QuotesAPI(Resource):
                     'client_units': item.client_units,
                     'client_price': item.client_price,
                     'client_month': item.client_month,
+                    'client_months': item.client_months or '',
                     'is_auto_generated': item.is_auto_generated,
-                    'monthly_distribution': monthly_dist.get(item.id, {})
+                    'monthly_distribution': {
+                        m: item.client_price
+                        for m in parse_months_csv(item.client_months)
+                    }
                 } for item in items]
             }
         else:
@@ -317,15 +316,18 @@ class QuoteItemsAPI(Resource):
             total_price=data.get('total_price', 0),
             client_units=data.get('client_units', 0),
             client_price=data.get('client_price', 0),
-            client_month=data.get('client_month', ''),
+            client_month='',
             is_auto_generated=False
         )
+        _csv = data.get('client_months')
+        if _csv is None:
+            _csv = client_month_label_to_csv(data.get('client_month', ''))
+        _months = parse_months_csv(_csv)
+        item.client_months = months_to_csv(_months)
+        item.client_month = months_to_label(_months)
         db.session.add(item)
         db.session.commit()
-        
-        # Generate monthly distribution
-        business_logic.generate_monthly_distribution(item.id)
-        
+
         return {'id': item.id, 'message': 'Item added successfully'}
     
     def put(self, quote_id, item_id):
@@ -340,13 +342,16 @@ class QuoteItemsAPI(Resource):
         item.total_price = data.get('total_price', item.total_price)
         item.client_units = data.get('client_units', item.client_units)
         item.client_price = data.get('client_price', item.client_price)
-        item.client_month = data.get('client_month', item.client_month)
-        
+        if 'client_months' in data or 'client_month' in data:
+            _csv = data.get('client_months')
+            if _csv is None:
+                _csv = client_month_label_to_csv(data.get('client_month', '') or '')
+            _months = parse_months_csv(_csv)
+            item.client_months = months_to_csv(_months)
+            item.client_month = months_to_label(_months)
+
         db.session.commit()
-        
-        # Regenerate monthly distribution
-        business_logic.regenerate_monthly_distribution(item_id)
-        
+
         return {'message': 'Item updated successfully'}
     
     def delete(self, quote_id, item_id):
