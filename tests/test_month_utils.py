@@ -37,6 +37,12 @@ def main() -> int:
     assert d['client_months'] == '2,5,8', d.get('client_months')
     assert d['monthly_distribution'] == {2: 3000.0, 5: 3000.0, 8: 3000.0}, d['monthly_distribution']
 
+    from month_utils import parse_months_csv as _p
+    price = 3000.0
+    dist = {m: price for m in _p('2,5,8')}
+    assert sum(dist.values()) == 9000.0
+    assert set(dist.keys()) == {2, 5, 8}
+
     print("OK — month_utils")
     return 0
 

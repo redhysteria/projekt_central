@@ -1,5 +1,6 @@
 from models import db, Quote, QuoteItem, MonthlyDistribution, Pricelist
 import re
+from month_utils import parse_months_csv, client_month_label_to_csv
 
 class BusinessLogic:
     def __init__(self):
@@ -71,6 +72,7 @@ class BusinessLogic:
             # Update existing item
             existing_item.client_price = client_price
             existing_item.client_month = client_month
+            existing_item.client_months = client_month_label_to_csv(client_month)
             existing_item.specialist_type = specialist_type
             
             # Get price from pricelist
@@ -103,6 +105,7 @@ class BusinessLogic:
                 client_units=client_units,
                 client_price=client_price,
                 client_month=client_month,
+                client_months=client_month_label_to_csv(client_month),
                 is_auto_generated=True
             )
             db.session.add(new_item)
@@ -123,30 +126,12 @@ class BusinessLogic:
                 self.generate_monthly_distribution(new_item.id)
     
     def generate_monthly_distribution(self, quote_item_id):
-        """Generate monthly distribution for a quote item"""
-        item = QuoteItem.query.get(quote_item_id)
-        if not item or not item.client_month:
-            return
-        
-        # Clear existing distribution
-        MonthlyDistribution.query.filter_by(quote_item_id=quote_item_id).delete()
-        
-        # Parse client_month and generate distribution
-        months = self._parse_client_month(item.client_month)
-        
-        for month_num in months:
-            distribution = MonthlyDistribution(
-                quote_item_id=quote_item_id,
-                month_number=month_num,
-                amount=item.client_price
-            )
-            db.session.add(distribution)
-        
-        db.session.commit()
-    
+        """Rozkład jest pochodną client_months — materializacja nieużywana."""
+        return
+
     def regenerate_monthly_distribution(self, quote_item_id):
-        """Regenerate monthly distribution for an item"""
-        self.generate_monthly_distribution(quote_item_id)
+        """Rozkład jest pochodną client_months — materializacja nieużywana."""
+        return
     
     def _parse_client_month(self, client_month):
         """Parse client month string and return list of month numbers (1-12)"""
@@ -183,16 +168,12 @@ class BusinessLogic:
         return months
     
     def calculate_monthly_totals(self, quote_id):
-        """Calculate monthly totals for all items in a quote"""
+        """Sumy miesięczne z client_months (pełna client_price w każdym miesiącu)."""
         items = QuoteItem.query.filter_by(quote_id=quote_id).all()
         monthly_totals = {month: 0 for month in range(1, 13)}
-        
         for item in items:
-            distributions = MonthlyDistribution.query.filter_by(quote_item_id=item.id).all()
-            for dist in distributions:
-                if 1 <= dist.month_number <= 12:
-                    monthly_totals[dist.month_number] += dist.amount
-        
+            for m in parse_months_csv(item.client_months):
+                monthly_totals[m] += (item.client_price or 0)
         return monthly_totals
     
     def calculate_item_totals(self, quote_id):

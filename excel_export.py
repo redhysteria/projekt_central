@@ -3,6 +3,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 from models import Quote, QuoteItem, MonthlyDistribution
 from business_logic import BusinessLogic
+from month_utils import parse_months_csv
 
 class ExcelExporter:
     def __init__(self):
@@ -55,10 +56,8 @@ class ExcelExporter:
         # Add data rows
         row = 2
         for item in items:
-            # Get monthly distribution for this item
-            monthly_dist = {}
-            for dist in MonthlyDistribution.query.filter_by(quote_item_id=item.id):
-                monthly_dist[dist.month_number] = dist.amount
+            # Rozkład miesięczny pochodny z client_months (pełna cena w każdym miesiącu)
+            monthly_dist = {m: (item.client_price or 0) for m in parse_months_csv(item.client_months)}
             
             # Row data
             row_data = [
