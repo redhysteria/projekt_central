@@ -126,17 +126,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label">Miesiąc realizacji</label>
-                                        <div class="month-range-container">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <span>Od:</span>
-                                                <input type="range" class="form-range" id="newFromMonth" min="1" max="12" value="1">
-                                                <span id="newFromMonthValue">01</span>
-                                                <span>Do:</span>
-                                                <input type="range" class="form-range" id="newToMonth" min="1" max="12" value="1">
-                                                <span id="newToMonthValue">01</span>
-                                            </div>
-                                            <div class="form-text" id="newMonthPreview">Miesiąc 01</div>
-                                        </div>
+                                        <div id="newTaskMonthPicker"></div>
                                     </div>
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end gap-2">
@@ -174,58 +164,6 @@
                                 <tbody>
                                     <!-- Items will be loaded here -->
                                 </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Monthly Distribution Section -->
-                <div id="sectionMonthly" class="card glass-card glass-card-hover mb-4 quote-toc-section">
-                    <div class="card-header">
-                        <h5 class="mb-0 text-light">Rozkład miesięczny</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-bordered" id="monthlyTable">
-                                <thead>
-                                    <tr>
-                                        <th>Zadanie</th>
-                                        <th>Miesiąc 01</th>
-                                        <th>Miesiąc 02</th>
-                                        <th>Miesiąc 03</th>
-                                        <th>Miesiąc 04</th>
-                                        <th>Miesiąc 05</th>
-                                        <th>Miesiąc 06</th>
-                                        <th>Miesiąc 07</th>
-                                        <th>Miesiąc 08</th>
-                                        <th>Miesiąc 09</th>
-                                        <th>Miesiąc 10</th>
-                                        <th>Miesiąc 11</th>
-                                        <th>Miesiąc 12</th>
-                                        <th>SUMA</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Monthly data will be loaded here -->
-                                </tbody>
-                                <tfoot>
-                                    <tr class="table-secondary">
-                                        <th>SUMA MIESIĘCZNA</th>
-                                        <th id="month01Sum">0</th>
-                                        <th id="month02Sum">0</th>
-                                        <th id="month03Sum">0</th>
-                                        <th id="month04Sum">0</th>
-                                        <th id="month05Sum">0</th>
-                                        <th id="month06Sum">0</th>
-                                        <th id="month07Sum">0</th>
-                                        <th id="month08Sum">0</th>
-                                        <th id="month09Sum">0</th>
-                                        <th id="month10Sum">0</th>
-                                        <th id="month11Sum">0</th>
-                                        <th id="month12Sum">0</th>
-                                        <th id="totalSum">0</th>
-                                    </tr>
-                                </tfoot>
                             </table>
                         </div>
                     </div>

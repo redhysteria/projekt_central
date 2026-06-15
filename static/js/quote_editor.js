@@ -9,12 +9,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 ===== INICJALIZACJA APLIKACJI ROZPOCZĘTA =====');
     console.log('🎬 DOMContentLoaded event fired');
     
-    console.log('⚙️ Inicjalizacja sliderów miesięcy...');
-    initMonthRangeSliders();
-    
     console.log('⚙️ Inicjalizacja sliderów w modalach...');
     initModalSliders();
-    
+
+    window._newTaskMonthsCsv = '';
+    const newPicker = document.getElementById('newTaskMonthPicker');
+    if (newPicker) {
+        MonthPicker.renderMonthPicker(newPicker, '', {
+            onChange: (csv) => { window._newTaskMonthsCsv = csv; },
+        });
+    }
+
     console.log('⚙️ Ustawienie handlerów dla nowego zadania...');
     setupNewTaskHandlers();
     
@@ -24,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     console.log('🔄 Inicjalizacja z URL...');
     await initializeFromURL();
+
+    initAiKeywordsModal();
     
     console.log('🎉 ===== INICJALIZACJA ZAKOŃCZONA =====');
 });
@@ -101,8 +108,7 @@ async function initializeFromURL() {
         };
         document.getElementById('quoteTitle').textContent = 'Nowa Wycena';
         renderItemsTable();
-        renderMonthlyTable();
-        
+
         // Load default templates for new quotes
         await loadDefaultTemplatesForNewQuote();
     }
@@ -203,125 +209,6 @@ async function loadPricelist() {
     }
 }
 
-// Month range slider functions
-function initMonthRangeSliders() {
-    // New task month range sliders
-    const newFrom = document.getElementById('newFromMonth');
-    const newTo = document.getElementById('newToMonth');
-    
-    if (newFrom && newTo) {
-        newFrom.addEventListener('input', () => updateNewTaskMonthRange());
-        newTo.addEventListener('input', () => updateNewTaskMonthRange());
-    }
-}
-
-function updateNewTaskMonthRange() {
-    const fromMonth = parseInt(document.getElementById('newFromMonth').value);
-    const toMonth = parseInt(document.getElementById('newToMonth').value);
-    
-    // Ensure from <= to
-    if (fromMonth > toMonth) {
-        document.getElementById('newToMonth').value = fromMonth;
-    }
-    
-    const fromStr = fromMonth.toString().padStart(2, '0');
-    const toStr = parseInt(document.getElementById('newToMonth').value).toString().padStart(2, '0');
-    
-    // Update value displays
-    document.getElementById('newFromMonthValue').textContent = fromStr;
-    document.getElementById('newToMonthValue').textContent = toStr;
-    
-    // Update preview text
-    let displayText;
-    if (fromMonth === parseInt(document.getElementById('newToMonth').value)) {
-        displayText = `Miesiąc ${fromStr}`;
-    } else {
-        displayText = `Od Miesiąc ${fromStr} do Miesiąc ${toStr}`;
-    }
-    document.getElementById('newMonthPreview').textContent = displayText;
-}
-
-function getNewTaskMonthValue() {
-    const fromMonth = parseInt(document.getElementById('newFromMonth').value);
-    const toMonth = parseInt(document.getElementById('newToMonth').value);
-    
-    if (fromMonth === toMonth) {
-        return `Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    } else {
-        return `Od Miesiąc ${fromMonth.toString().padStart(2, '0')}`;
-    }
-}
-
-function parseItemMonth(monthValue) {
-    // Parse value like "Miesiąc 02" or "Od Miesiąc 02"
-    let from = 1, to = 1; // defaults
-    
-    if (monthValue && monthValue.includes('Miesiąc')) {
-        const match = monthValue.match(/Miesiąc (\d{1,2})/);
-        if (match) {
-            from = parseInt(match[1]);
-            to = from;
-        }
-    } else if (monthValue && monthValue.includes('Od Miesiąc')) {
-        const match = monthValue.match(/Od Miesiąc (\d{1,2})/);
-        if (match) {
-            from = parseInt(match[1]);
-            to = 12; // "Od Miesiąc X" means from X to 12
-        }
-    }
-    
-    return {
-        from: from,
-        to: to,
-        fromStr: from.toString().padStart(2, '0'),
-        toStr: to.toString().padStart(2, '0')
-    };
-}
-
-function generateMonthlyDistributionForItem(item) {
-    // Generate monthly distribution object for an item
-    const monthData = parseItemMonth(item.client_month);
-    const distribution = {};
-    
-    if (monthData.from === monthData.to) {
-        // Single month
-        distribution[monthData.from] = item.client_price;
-    } else {
-        // Range: from month to 12
-        for (let m = monthData.from; m <= 12; m++) {
-            distribution[m] = item.client_price;
-        }
-    }
-    
-    return distribution;
-}
-
-function updateItemMonthRange(itemId) {
-    const fromMonth = parseInt(document.getElementById(`itemFromMonth${itemId}`).value);
-    const toMonth = parseInt(document.getElementById(`itemToMonth${itemId}`).value);
-    
-    // Ensure from <= to
-    if (fromMonth > toMonth) {
-        document.getElementById(`itemToMonth${itemId}`).value = fromMonth;
-    }
-    
-    const fromStr = fromMonth.toString().padStart(2, '0');
-    const toStr = parseInt(document.getElementById(`itemToMonth${itemId}`).value).toString().padStart(2, '0');
-    
-    // Update value displays
-    document.getElementById(`itemFromMonthValue${itemId}`).textContent = fromStr;
-    document.getElementById(`itemToMonthValue${itemId}`).textContent = toStr;
-    
-    // Update item data
-    let clientMonth;
-    if (fromMonth === parseInt(document.getElementById(`itemToMonth${itemId}`).value)) {
-        clientMonth = `Miesiąc ${fromStr}`;
-    } else {
-        clientMonth = `Od Miesiąc ${fromStr}`;
-    }
-    
-    updateItemField(itemId, 'client_month', clientMonth);
-}
 
 function populateSpecialistDropdown() {
     console.log('🔧 populateSpecialistDropdown() wywołana');
@@ -371,12 +258,12 @@ async function loadQuote(quoteId) {
         syncQuoteNameToDomains(currentQuote.name);
         
         renderItemsTable();
-        renderMonthlyTable();
-        
+
         // Load competitors data
         await loadCompetitors();
         loadBrandBrief();
-        
+        window.dispatchEvent(new CustomEvent('quoteReady', { detail: { quoteId } }));
+
     } catch (error) {
         console.error('Error loading quote:', error);
         showAlert('Błąd podczas ładowania wyceny', 'danger');
@@ -437,8 +324,7 @@ async function updateItemField(itemId, fieldName, value) {
         });
 
         if (response.ok) {
-            // Update monthly distribution
-            renderMonthlyTable();
+            // monthly distribution preview removed
         } else {
             throw new Error('Failed to update item');
         }
@@ -499,18 +385,7 @@ function renderItemsTable() {
                 <span id="client-price-${item.id}">${formatCurrency(item.client_price)}</span>
             </td>
             <td>
-                <div class="month-range-container">
-                    <div class="d-flex align-items-center gap-1">
-                        <span>Od:</span>
-                        <input type="range" class="form-range form-range-sm" id="itemFromMonth${item.id}" min="1" max="12" value="${parseItemMonth(item.client_month).from}" 
-                               onchange="updateItemMonthRange(${item.id})" ${item.is_auto_generated ? 'disabled' : ''}>
-                        <span id="itemFromMonthValue${item.id}" class="small">${parseItemMonth(item.client_month).fromStr}</span>
-                        <span>Do:</span>
-                        <input type="range" class="form-range form-range-sm" id="itemToMonth${item.id}" min="1" max="12" value="${parseItemMonth(item.client_month).to}" 
-                               onchange="updateItemMonthRange(${item.id})" ${item.is_auto_generated ? 'disabled' : ''}>
-                        <span id="itemToMonthValue${item.id}" class="small">${parseItemMonth(item.client_month).toStr}</span>
-                    </div>
-                </div>
+                <div class="month-picker-cell" id="monthPicker${item.id}"></div>
             </td>
             <td>
                 ${item.is_auto_generated ? '' : `
@@ -521,51 +396,14 @@ function renderItemsTable() {
             </td>
         `;
         tbody.appendChild(row);
-    });
-}
-
-function renderMonthlyTable() {
-    const tbody = document.querySelector('#monthlyTable tbody');
-    tbody.innerHTML = '';
-
-    if (quoteItems.length === 0) {
-        return;
-    }
-
-    // Calculate monthly totals
-    const monthlyTotals = {};
-    for (let month = 1; month <= 12; month++) {
-        monthlyTotals[month] = 0;
-    }
-
-    quoteItems.forEach(item => {
-        const row = document.createElement('tr');
-        const monthlyDistribution = item.monthly_distribution || {};
-        
-        let rowTotal = 0;
-        let cells = `<td>${item.task_name} ${item.is_auto_generated ? '<span class="badge bg-info ms-1">Auto</span>' : ''}</td>`;
-        
-        for (let month = 1; month <= 12; month++) {
-            const amount = monthlyDistribution[month] || 0;
-            rowTotal += amount;
-            monthlyTotals[month] += amount;
-            
-            cells += `<td class="text-end">${formatCurrency(amount)}</td>`;
+        const pickerEl = document.getElementById(`monthPicker${item.id}`);
+        if (pickerEl) {
+            MonthPicker.renderMonthPicker(pickerEl, item.client_months || '', {
+                disabled: !!item.is_auto_generated,
+                onChange: (csv) => updateItemField(item.id, 'client_months', csv),
+            });
         }
-        
-        cells += `<td class="text-end fw-bold">${formatCurrency(rowTotal)}</td>`;
-        row.innerHTML = cells;
-        tbody.appendChild(row);
     });
-
-    // Update totals row
-    let totalSum = 0;
-    for (let month = 1; month <= 12; month++) {
-        const amount = monthlyTotals[month];
-        totalSum += amount;
-        document.getElementById(`month${month.toString().padStart(2, '0')}Sum`).textContent = formatCurrency(amount);
-    }
-    document.getElementById('totalSum').textContent = formatCurrency(totalSum);
 }
 
 async function addNewItem() {
@@ -583,7 +421,7 @@ async function addNewItem() {
         total_price: 0,
         client_units: 1,
         client_price: 0,
-        client_month: ''
+        client_months: ''
     };
 
     try {
@@ -668,6 +506,7 @@ async function saveQuote() {
                 // New quote created
                 currentQuote.id = result.id;
                 window.history.replaceState({}, '', `?id=${result.id}`);
+                window.dispatchEvent(new CustomEvent('quoteReady', { detail: { quoteId: result.id } }));
                 
                 // If we have template items loaded, save them to the new quote
                 if (quoteItems.length > 0) {
@@ -775,8 +614,7 @@ async function addTaskInline() {
     const pricePerUnit = parseFloat(document.getElementById('newPricePerUnit').value) || 0;
     const clientPrice = pricePerUnit * clientUnits;
     
-    // Get month setting from range sliders
-    const clientMonth = getNewTaskMonthValue();
+    const clientMonthsCsv = window._newTaskMonthsCsv || '';
     
     if (!taskName || !specialistType || clientUnits <= 0 || pricePerUnit <= 0) {
         showAlert('Proszę wypełnić wszystkie wymagane pola', 'warning');
@@ -797,7 +635,7 @@ async function addTaskInline() {
         total_price: clientPrice,
         client_units: clientUnits,
         client_price: clientPrice,
-        client_month: clientMonth
+        client_months: clientMonthsCsv
     };
     
     try {
@@ -813,6 +651,9 @@ async function addTaskInline() {
             showAlert('Zadanie zostało dodane', 'success');
             clearInlineForm();
             loadQuote(currentQuote.id);
+            window._newTaskMonthsCsv = '';
+            const np = document.getElementById('newTaskMonthPicker');
+            if (np) MonthPicker.renderMonthPicker(np, '', { onChange: (csv) => { window._newTaskMonthsCsv = csv; } });
         } else {
             throw new Error('Failed to add item');
         }
@@ -829,20 +670,6 @@ function clearInlineForm() {
     document.getElementById('newClientUnits').value = '1';
     document.getElementById('newPricePerUnit').value = '';
     document.getElementById('newTotalPrice').textContent = '0,00 zł';
-    
-    // Reset month range sliders to default (month 1)
-    const fromSlider = document.getElementById('newFromMonth');
-    const toSlider = document.getElementById('newToMonth');
-    if (fromSlider) {
-        fromSlider.value = 1;
-        document.getElementById('newFromMonthValue').textContent = '01';
-    }
-    if (toSlider) {
-        toSlider.value = 1;
-        document.getElementById('newToMonthValue').textContent = '01';
-    }
-    document.getElementById('newMonthPreview').textContent = 'Miesiąc 01';
-    
     console.log('Formularz wyczyszczony i zresetowany do wartości domyślnych');
 }
 
@@ -1057,6 +884,47 @@ function addDomainToAnalysis(domain) {
     textarea.scrollTop = textarea.scrollHeight;
 }
 
+let _cachedBrandBrief = null;
+
+function getClientBusinessDescription() {
+    if (_cachedBrandBrief?.company_info) {
+        const info = _cachedBrandBrief.company_info;
+        if (typeof info === 'string') {
+            const trimmed = info.trim();
+            if (trimmed && trimmed !== 'Brak danych') return trimmed;
+        }
+    }
+
+    const container = document.getElementById('brandBriefContent');
+    const firstP = container?.querySelector('.mb-4 p');
+    if (firstP) {
+        const t = firstP.textContent.trim();
+        if (t && t !== 'Brak danych') return t;
+    }
+
+    return '';
+}
+
+window.getClientBusinessDescription = getClientBusinessDescription;
+
+function syncAiKeywordsDescription() {
+    const display = document.getElementById('aiClientDescriptionDisplay');
+    if (!display) return;
+    const desc = getClientBusinessDescription();
+    if (desc) {
+        display.innerHTML = `<span class="text-light" style="white-space: pre-wrap;">${desc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`;
+    } else {
+        display.innerHTML = '<span class="text-muted">Wygeneruj <strong class="text-light">Brief AI</strong> u góry strony (Parametry wyceny → Brief AI).</span>';
+    }
+}
+
+function initAiKeywordsModal() {
+    const modal = document.getElementById('aiKeywordsModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', syncAiKeywordsDescription);
+    window.addEventListener('brandBriefUpdated', syncAiKeywordsDescription);
+}
+
 async function generateBrandBrief() {
     const domain = (document.getElementById('quoteName')?.value || '').trim();
     if (!domain) {
@@ -1125,6 +993,7 @@ async function loadBrandBrief() {
 }
 
 function renderBrandBrief(brief) {
+    _cachedBrandBrief = brief || null;
     const section = document.getElementById('brandBriefSection');
     const container = document.getElementById('brandBriefContent');
     if (!section || !container) return;
@@ -1166,12 +1035,14 @@ function renderBrandBrief(brief) {
     }).join('<hr class="border-secondary">');
 
     section.classList.remove('d-none');
+    window.dispatchEvent(new CustomEvent('brandBriefUpdated'));
 }
 
 async function generateAIKeywords() {
-    const description = (document.getElementById('aiClientDescription')?.value || '').trim();
+    syncAiKeywordsDescription();
+    const description = getClientBusinessDescription();
     if (!description) {
-        alert('Podaj opis biznesu klienta');
+        alert('Najpierw wygeneruj Brief AI u góry strony (Parametry wyceny → Brief AI).');
         return;
     }
 
