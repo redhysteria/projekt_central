@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
+from month_utils import parse_months_csv
 
 db = SQLAlchemy()
 
@@ -75,6 +76,7 @@ class QuoteItem(db.Model):
     client_units = db.Column(db.Float, default=0)  # Units for client (j.m. - klient)
     client_price = db.Column(db.Float, default=0)  # Price for client (cena na projekt - klient)
     client_month = db.Column(db.String(50), default='')  # Client execution month
+    client_months = db.Column(db.Text, default='')  # kanoniczny CSV miesięcy 1-12, np. "2,5,8"
     
     # Auto-generated flag
     is_auto_generated = db.Column(db.Boolean, default=False)
@@ -95,10 +97,10 @@ class QuoteItem(db.Model):
             'client_units': self.client_units,
             'client_price': self.client_price,
             'client_month': self.client_month,
+            'client_months': self.client_months or '',
             'is_auto_generated': self.is_auto_generated,
             'monthly_distribution': {
-                dist.month_number: dist.amount 
-                for dist in self.monthly_distributions
+                m: self.client_price for m in parse_months_csv(self.client_months)
             }
         }
 

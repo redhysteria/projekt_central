@@ -47,12 +47,27 @@ with app.app_context():
         'ALTER TABLE google_ads_settings ADD COLUMN product_target_roas FLOAT DEFAULT 4.0',
         'ALTER TABLE google_ads_settings ADD COLUMN product_cpc FLOAT',
         'ALTER TABLE google_ads_settings ADD COLUMN product_cvr FLOAT',
+        'ALTER TABLE quote_item ADD COLUMN client_months TEXT',
     ):
         try:
             _conn.execute(_col_stmt)
             _conn.commit()
         except sqlite3.OperationalError:
             pass
+    # Backfill client_months ze starego client_month (tylko gdy puste)
+    try:
+        from month_utils import client_month_label_to_csv
+        rows = _conn.execute(
+            "SELECT id, client_month FROM quote_item "
+            "WHERE (client_months IS NULL OR client_months = '') AND client_month != ''"
+        ).fetchall()
+        for _id, _cm in rows:
+            _csv = client_month_label_to_csv(_cm)
+            if _csv:
+                _conn.execute("UPDATE quote_item SET client_months = ? WHERE id = ?", (_csv, _id))
+        _conn.commit()
+    except sqlite3.OperationalError:
+        pass
     _conn.close()
 
     # Initialize pricelist if empty

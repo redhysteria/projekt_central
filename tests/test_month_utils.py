@@ -31,6 +31,12 @@ def main() -> int:
     assert client_month_label_to_csv("") == ""
     assert client_month_label_to_csv(None) == ""
 
+    from models import QuoteItem
+    it = QuoteItem(task_name='X', specialist_type='Mid SEO', client_price=3000.0, client_months='2,5,8')
+    d = it.to_dict()
+    assert d['client_months'] == '2,5,8', d.get('client_months')
+    assert d['monthly_distribution'] == {2: 3000.0, 5: 3000.0, 8: 3000.0}, d['monthly_distribution']
+
     print("OK — month_utils")
     return 0
 
