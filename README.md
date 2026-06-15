@@ -23,10 +23,10 @@ Aplikacja webowa do tworzenia i zarządzania wycenami projektów SEO i Content M
 - **LB budżet mediowy** (85% kwoty LB) - rozkład od wybranego miesiąca  
 - **Napisanie treści** - kalkulacja: stawka × mnożnik × znaki × liczba tekstów
 
-### 📅 Rozkład miesięczny
-- **"Miesiąc XX"** - kwota trafia do konkretnego miesiąca
-- **"Od Miesiąc XX"** - kwota trafia od wybranego miesiąca do końca roku
-- **Automatyczne sumy** - suma miesięczna i suma zadań
+### 📅 Miesiące realizacji
+- **Pigułki miesięcy 01–12** przy każdym zadaniu - klik = zaznacz/odznacz miesiąc, **shift-klik** = wypełnij zakres ciągły, „✕" czyści
+- **Dowolny zbiór** - zarówno zakres ciągły (np. 02–07), jak i rozproszone miesiące (np. 02, 05, 08)
+- **Jedno źródło prawdy** - rozkład miesięczny i eksport XLSX liczone wprost z zaznaczonych miesięcy (pełna cena w każdym zaznaczonym miesiącu)
 
 ## Instalacja i uruchomienie
 
